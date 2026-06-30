@@ -1,17 +1,19 @@
 export default function DashboardLoading() {
   return (
-    <div>
-      <div className="h-10 w-48 bg-foreground/10 rounded-xl animate-pulse mb-8"></div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="border border-foreground/10 rounded-2xl overflow-hidden bg-background flex flex-col h-64 shadow-sm animate-pulse">
-            <div className="h-32 bg-foreground/10 border-b border-foreground/5"></div>
-            <div className="p-4 flex-1 flex flex-col gap-3">
-              <div className="h-4 w-24 bg-foreground/10 rounded"></div>
-              <div className="h-4 w-full bg-foreground/10 rounded"></div>
-              <div className="h-4 w-5/6 bg-foreground/10 rounded"></div>
-              <div className="h-4 w-4/6 bg-foreground/10 rounded"></div>
+    <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className="h-8 w-36 bg-[var(--surface-2)] rounded-xl" />
+        <div className="h-9 w-28 bg-[var(--surface-2)] rounded-xl" />
+      </div>
+      <div className="h-11 bg-[var(--surface-2)] rounded-xl" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[1,2,3,4,5,6].map(i => (
+          <div key={i} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+            <div className="h-36 bg-[var(--surface-2)]" />
+            <div className="p-4 space-y-2">
+              <div className="h-5 bg-[var(--surface-2)] rounded w-3/4" />
+              <div className="h-4 bg-[var(--surface-2)] rounded" />
+              <div className="h-4 bg-[var(--surface-2)] rounded w-4/5" />
             </div>
           </div>
         ))}
