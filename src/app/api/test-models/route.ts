@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
     // Let's call the API endpoint directly using fetch to be 100% safe and get raw data.
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-    );
+    ).catch(e => {
+      console.error('Fetch error:', e);
+      throw new Error(`Fetch failed: ${e.message}. Cause: ${JSON.stringify(e.cause || {})}`);
+    });
     
     const data = await response.json();
     
@@ -26,6 +29,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('API Error:', error);
+    return NextResponse.json({ error: error.message, cause: error.cause }, { status: 500 });
   }
 }
