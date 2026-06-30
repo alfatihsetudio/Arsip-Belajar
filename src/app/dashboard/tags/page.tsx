@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import TagChip from '@/components/tags/TagChip';
 
 export default async function TagsPage() {
   const supabase = await createClient();
@@ -61,16 +61,7 @@ export default async function TagsPage() {
       ) : (
         <div className="flex flex-wrap gap-3">
           {tags.map((tag: any) => (
-            <Link
-              key={tag.id}
-              href={`/dashboard?tag=${tag.id}`}
-              className="bg-[var(--surface)] border border-[var(--border)] px-4 py-2.5 rounded-2xl hover:border-[var(--text-muted)] hover:shadow-md transition-all flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]"
-            >
-              <span># {tag.name}</span>
-              <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-2)] px-2 py-0.5 rounded-full">
-                {tag.note_tags?.length || 0}
-              </span>
-            </Link>
+            <TagChip key={tag.id} tag={tag} />
           ))}
         </div>
       )}
