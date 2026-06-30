@@ -11,21 +11,26 @@ export default function NoteActions({ noteId, noteTitle }: { noteId: string; not
   const supabase = createClient();
 
   const handleDelete = async () => {
-    setDeleting(true);
+    try {
+      setDeleting(true);
 
-    // Delete child rows first to avoid foreign key violations
-    await supabase.from('note_media').delete().eq('note_id', noteId);
-    await supabase.from('note_tags').delete().eq('note_id', noteId);
+      // Delete child rows first to avoid foreign key violations
+      await supabase.from('note_media').delete().eq('note_id', noteId);
+      await supabase.from('note_tags').delete().eq('note_id', noteId);
 
-    const { error } = await supabase.from('notes').delete().eq('id', noteId);
-    if (error) {
-      alert('Gagal menghapus catatan');
+      const { error } = await supabase.from('notes').delete().eq('id', noteId);
+      if (error) {
+        alert('Gagal menghapus catatan: ' + (error.message || JSON.stringify(error)));
+        setDeleting(false);
+        return;
+      }
+
+      router.push('/dashboard');
+      router.refresh();
+    } catch (err: any) {
+      alert('Exception saat menghapus: ' + err.message);
       setDeleting(false);
-      return;
     }
-
-    router.push('/dashboard');
-    router.refresh();
   };
 
   const handleCopy = () => {
