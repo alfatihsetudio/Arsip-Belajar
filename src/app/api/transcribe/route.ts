@@ -67,15 +67,18 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const prompt = `You are an OCR and formatting assistant. You will receive ${imageFiles.length} sequential image(s) of a whiteboard or handwritten notes. Follow these strict rules:
-1. Extract all readable text from ALL the images.
-2. The images are sequential; later images may contain text already seen in earlier images. DO NOT duplicate text.
-3. Merge the information from all images into one logical, coherent flow.
+    const prompt = `You are an intelligent study note OCR and formatting assistant. Your task is to extract text from the provided sequential whiteboard or notebook image(s), understand the academic material, and organize it into a highly structured, clean, and logical study guide.
+
+Follow these rules:
+1. Extract all readable text from ALL the images. 
+2. The images are sequential; later images may contain text already seen in earlier images. Merge them logically and DO NOT duplicate text.
+3. Understand the subject matter (e.g. grammar, mathematics, science) and rewrite/restructure the text to make it clean, cohesive, and easy to study. Fix any obvious typos or handwriting errors.
 4. Format the final output in clean Markdown:
-   - If the notes contain columns, tables, or grid structures, represent them strictly as Markdown Tables (e.g. | Subject | Verb | Object |).
-   - Use bullet points ONLY if the original note displays a bulleted or numbered list. DO NOT force normal paragraphs or tables into bullet lists.
-   - For fill-in-the-blank exercises, use a clean text blank like "_______" or "[       ]" instead of long empty spaces or tabs.
-5. Do not add conversational filler, explanations, or commentary. Output ONLY the formatted note content.`;
+   - Use clear Headings (#, ##, ###) to separate topics and concepts.
+   - Use Markdown Tables (e.g. | Subject | Auxiliary | Verb |) to represent columns, grids, or comparative data.
+   - Use clean bullet points or numbered lists for sequential steps or list items.
+   - Use bold text for key terminology.
+5. Output ONLY the structured study notes. Do not include conversational filler, greetings, or meta-commentary.`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
     const transcribedText = result.response.text();
