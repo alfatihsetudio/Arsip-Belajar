@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import FolderCard from '@/components/folders/FolderCard';
 
 export default async function FoldersPage() {
   const supabase = await createClient();
@@ -61,19 +61,7 @@ export default async function FoldersPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {folders.map((folder: any) => (
-            <Link
-              key={folder.id}
-              href={`/dashboard?folder=${folder.id}`}
-              className="bg-[var(--surface)] border border-[var(--border)] p-5 rounded-2xl hover:border-[var(--text-muted)] hover:shadow-md transition-all flex items-start gap-4"
-            >
-              <div className="w-10 h-10 bg-[var(--surface-2)] rounded-xl flex items-center justify-center text-[var(--text-secondary)] flex-shrink-0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate">{folder.name}</h3>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">{folder.notes?.length || 0} notes</p>
-              </div>
-            </Link>
+            <FolderCard key={folder.id} folder={folder} />
           ))}
         </div>
       )}
