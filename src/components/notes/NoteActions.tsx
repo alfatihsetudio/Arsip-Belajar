@@ -12,7 +12,18 @@ export default function NoteActions({ noteId, noteTitle }: { noteId: string; not
 
   const handleDelete = async () => {
     setDeleting(true);
-    await supabase.from('notes').delete().eq('id', noteId);
+
+    // Delete child rows first to avoid foreign key violations
+    await supabase.from('note_media').delete().eq('note_id', noteId);
+    await supabase.from('note_tags').delete().eq('note_id', noteId);
+
+    const { error } = await supabase.from('notes').delete().eq('id', noteId);
+    if (error) {
+      alert('Gagal menghapus catatan');
+      setDeleting(false);
+      return;
+    }
+
     router.push('/dashboard');
     router.refresh();
   };

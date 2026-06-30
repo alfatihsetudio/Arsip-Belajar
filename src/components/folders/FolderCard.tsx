@@ -17,6 +17,10 @@ export default function FolderCard({ folder }: { folder: any }) {
     e.stopPropagation();
     if (!confirm(`Hapus folder "${folder.name}"? Catatan di dalamnya tidak akan terhapus.`)) return;
     setDeleting(true);
+
+    // Unlink notes inside this folder first
+    await supabase.from('notes').update({ folder_id: null }).eq('folder_id', folder.id);
+
     const { error } = await supabase.from('folders').delete().eq('id', folder.id);
     if (!error) {
       router.refresh();

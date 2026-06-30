@@ -17,6 +17,10 @@ export default function TagChip({ tag }: { tag: any }) {
     e.stopPropagation();
     if (!confirm(`Hapus tag "#${tag.name}"?`)) return;
     setDeleting(true);
+
+    // Delete tag associations first
+    await supabase.from('note_tags').delete().eq('tag_id', tag.id);
+
     const { error } = await supabase.from('tags').delete().eq('id', tag.id);
     if (!error) {
       router.refresh();

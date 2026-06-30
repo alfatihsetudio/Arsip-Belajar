@@ -28,6 +28,10 @@ export default function UploadPage() {
       if (data) setFolders(data);
     };
     fetchFolders();
+
+    const params = new URLSearchParams(window.location.search);
+    const folderParam = params.get('folder');
+    if (folderParam) setFolderId(folderParam);
   }, []);
 
   const addImages = useCallback((files: FileList | File[]) => {
