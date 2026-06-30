@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -13,11 +13,22 @@ interface ImageFile {
 export default function UploadPage() {
   const [images, setImages] = useState<ImageFile[]>([]);
   const [title, setTitle] = useState('');
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [folderId, setFolderId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const fetchFolders = async () => {
+      const supabase = (await import('@/lib/supabase/client')).createClient();
+      const { data } = await supabase.from('folders').select('id, name').order('name');
+      if (data) setFolders(data);
+    };
+    fetchFolders();
+  }, []);
 
   const addImages = useCallback((files: FileList | File[]) => {
     const newImages = Array.from(files).map(file => ({
@@ -51,6 +62,7 @@ export default function UploadPage() {
 
     const formData = new FormData();
     formData.append('title', title.trim());
+    if (folderId) formData.append('folder_id', folderId);
     images.forEach((img, i) => {
       formData.append('images', img.file);
       formData.append(`order_${i}`, String(i));
@@ -88,6 +100,21 @@ export default function UploadPage() {
           placeholder="e.g. Algebra – Chapter 3"
           className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-[var(--accent)] transition-colors"
         />
+      </div>
+
+      {/* Folder Selection */}
+      <div className="mb-5">
+        <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">Folder</label>
+        <select
+          value={folderId}
+          onChange={e => setFolderId(e.target.value)}
+          className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-[var(--accent)] text-[var(--text-secondary)] transition-colors"
+        >
+          <option value="">No Folder (Root)</option>
+          {folders.map(f => (
+            <option key={f.id} value={f.id}>{f.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* Image Upload Area */}

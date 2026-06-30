@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const title = formData.get('title') as string;
+    const folderId = formData.get('folder_id') as string | null;
     const imageFiles = formData.getAll('images') as File[];
 
     if (!imageFiles || imageFiles.length === 0) {
@@ -79,7 +80,12 @@ export async function POST(req: NextRequest) {
     // 3. Save note to database
     const { data: note, error: noteError } = await supabase
       .from('notes')
-      .insert({ user_id: user.id, title: title.trim(), transcribed_text: transcribedText })
+      .insert({ 
+        user_id: user.id, 
+        title: title.trim(), 
+        transcribed_text: transcribedText,
+        folder_id: folderId || null
+      })
       .select()
       .single();
 

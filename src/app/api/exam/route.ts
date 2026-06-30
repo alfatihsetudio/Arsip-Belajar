@@ -12,26 +12,53 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { noteId, count = 5 } = await req.json();
-    if (!noteId) return NextResponse.json({ error: 'noteId is required' }, { status: 400 });
+    const { noteId, noteIds, count = 5 } = await req.json();
 
-    const { data: note } = await supabase
-      .from('notes')
-      .select('title, transcribed_text')
-      .eq('id', noteId)
-      .eq('user_id', user.id)
-      .single();
+    let combinedNotesText = '';
+    
+    if (noteId) {
+      // Quick Review (Single Note)
+      const { data: note } = await supabase
+        .from('notes')
+        .select('title, transcribed_text')
+        .eq('id', noteId)
+        .eq('user_id', user.id)
+        .single();
 
-    if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+      if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+      combinedNotesText = `Title: ${note.title}\nContent:\n${note.transcribed_text}`;
+    } else if (noteIds && Array.isArray(noteIds)) {
+      // Grand Exam (Multiple Notes)
+      if (noteIds.length === 0) {
+        return NextResponse.json({ error: 'Please select at least one note' }, { status: 400 });
+      }
+      if (noteIds.length > 10) {
+        return NextResponse.json({ error: 'You can select up to 10 notes for a Grand Exam' }, { status: 400 });
+      }
+
+      const { data: notes } = await supabase
+        .from('notes')
+        .select('title, transcribed_text')
+        .in('id', noteIds)
+        .eq('user_id', user.id);
+
+      if (!notes || notes.length === 0) {
+        return NextResponse.json({ error: 'No notes found' }, { status: 404 });
+      }
+
+      combinedNotesText = notes
+        .map((note, index) => `Note #${index + 1}: ${note.title}\nContent:\n${note.transcribed_text}`)
+        .join('\n\n---\n\n');
+    } else {
+      return NextResponse.json({ error: 'Either noteId or noteIds is required' }, { status: 400 });
+    }
 
     const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
 
-    const prompt = `You are an exam question generator. Based on the following study note, generate exactly ${count} multiple-choice questions to test understanding.
+    const prompt = `You are an exam question generator. Based on the following study note(s), generate exactly ${count} multiple-choice questions to test understanding of the material.
 
-STUDY NOTE:
-Title: ${note.title}
-Content:
-${note.transcribed_text}
+STUDY MATERIAL:
+${combinedNotesText}
 
 OUTPUT FORMAT (strict JSON only, no markdown, no explanation):
 {
@@ -53,7 +80,6 @@ Rules:
     const result = await model.generateContent(prompt);
     const rawText = result.response.text();
 
-    // Parse JSON from response
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Invalid AI response format');
     
