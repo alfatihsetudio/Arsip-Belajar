@@ -66,7 +66,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
               Quick Exam
             </Link>
           </div>
-          <div className="prose prose-neutral prose-sm md:prose-base dark:prose-invert max-w-none text-[var(--text-primary)] leading-relaxed">
+          <div className="prose prose-slate prose-sm md:prose-base max-w-none prose-p:my-2 prose-li:my-0 prose-ul:my-2 text-[var(--text-primary)] leading-relaxed">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {note.transcribed_text}
             </ReactMarkdown>

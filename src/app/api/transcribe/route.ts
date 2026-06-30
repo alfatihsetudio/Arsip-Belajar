@@ -67,19 +67,13 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const prompt = `You are an intelligent study note OCR and formatting assistant. Your task is to extract text from the provided sequential whiteboard or notebook image(s), understand the academic material, and organize it into a highly structured, clean, and logical study guide.
-
-Follow these rules:
-1. Extract all readable text from ALL the images. 
-2. The images are sequential; later images may contain text already seen in earlier images. Merge them logically and DO NOT duplicate text.
-3. Understand the subject matter (e.g. grammar, mathematics, science) and rewrite/restructure the text to make it clean, cohesive, and easy to study. Fix any obvious typos or handwriting errors.
-4. DO NOT try to visually replicate the spatial layout, coordinates, or physical positions of the text on the whiteboard by using multiple consecutive spaces, tabs, or blank lines. Output the content as continuous, clean, left-aligned sentences and paragraphs.
-5. Format the final output in clean Markdown:
-   - Use clear Headings (#, ##, ###) to separate topics and concepts.
-   - Use Markdown Tables (e.g. | Subject | Auxiliary | Verb |) to represent columns, grids, or comparative data.
-   - Use clean bullet points or numbered lists for sequential steps or list items.
-   - Use bold text for key terminology.
-6. Output ONLY the structured study notes. Do not include conversational filler, greetings, or meta-commentary.`;
+    const prompt = `You are an expert educational notes transcriber. Extract text from the image. 
+CRITICAL RULES: 
+- Output strictly in standard Markdown.
+- NEVER use multiple spaces or tabs for alignment. 
+- Keep bullet points simple and standard: \`- text\`.
+- Do not lose any words. If there is a label before a parenthesis (e.g., 'Experience: (ever, never, once)'), transcribe the label exactly.
+- Structure it beautifully with # Headings, - Bullet points, and **Bold** text for emphasis. Make it read like a professional textbook.`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
     const transcribedText = result.response.text();
