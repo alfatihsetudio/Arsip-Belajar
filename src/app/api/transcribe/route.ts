@@ -71,7 +71,10 @@ export async function POST(req: NextRequest) {
 1. Extract all readable text from ALL the images.
 2. The images are sequential; later images may contain text already seen in earlier images. DO NOT duplicate text.
 3. Merge the information from all images into one logical, coherent flow.
-4. Format the final output strictly in Markdown (use # Headings, - Bullet Points, **Bold text** for key terms). 
+4. Format the final output in clean Markdown:
+   - If the notes contain columns, tables, or grid structures, represent them strictly as Markdown Tables (e.g. | Subject | Verb | Object |).
+   - Use bullet points ONLY if the original note displays a bulleted or numbered list. DO NOT force normal paragraphs or tables into bullet lists.
+   - For fill-in-the-blank exercises, use a clean text blank like "_______" or "[       ]" instead of long empty spaces or tabs.
 5. Do not add conversational filler, explanations, or commentary. Output ONLY the formatted note content.`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
