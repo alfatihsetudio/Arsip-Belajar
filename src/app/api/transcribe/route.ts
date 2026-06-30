@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const imageUrl = signedUrlData.signedUrl;
 
     // 3. Process with Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
 
     const prompt = "You are a strict Optical Character Recognition (OCR) machine. Your ONLY task is to read the text from the provided image and transcribe it accurately. Format the output with clear paragraphs or bullet points if necessary for readability. YOU ARE STRICTLY FORBIDDEN from adding any explanations, summaries, additional context, or teaching the material. Output ONLY the transcribed text.";
 
