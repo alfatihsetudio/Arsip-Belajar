@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import NoteActions from '@/components/notes/NoteActions';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default async function NoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -64,8 +66,10 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
               Quick Exam
             </Link>
           </div>
-          <div className="prose text-[var(--text-primary)] text-sm leading-relaxed whitespace-pre-wrap">
-            {note.transcribed_text}
+          <div className="prose prose-neutral prose-sm md:prose-base dark:prose-invert max-w-none text-[var(--text-primary)] leading-relaxed">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {note.transcribed_text}
+            </ReactMarkdown>
           </div>
         </div>
       </div>
