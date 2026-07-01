@@ -1,6 +1,8 @@
 import LoginButton from '@/components/auth/LoginButton';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Welcome',
   description: 'Sign in to ArsipBelajar – your AI-powered personal study archive.',
