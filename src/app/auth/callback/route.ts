@@ -17,7 +17,8 @@ export async function GET(request: Request) {
       if (isLocalEnv) {
         return NextResponse.redirect(`${origin}${next}`)
       } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
+        const cleanHost = forwardedHost.split(',')[0].trim()
+        return NextResponse.redirect(`https://${cleanHost}${next}`)
       } else {
         return NextResponse.redirect(`${origin}${next}`)
       }
