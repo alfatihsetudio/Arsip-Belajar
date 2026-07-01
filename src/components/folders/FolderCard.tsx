@@ -5,9 +5,26 @@ import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 
 export default function FolderCard({ folder }: { folder: any }) {
+  // Parse folder info if it is a JSON string
+  let displayName = folder.name;
+  let description = '';
+  let color = '';
+  let emoji = '📁';
+  if (folder.name && folder.name.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(folder.name);
+      displayName = parsed.name || folder.name;
+      description = parsed.description || '';
+      color = parsed.color || '';
+      emoji = parsed.emoji || '📁';
+    } catch (e) {
+      // fallback
+    }
+  }
+
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [newName, setNewName] = useState(folder.name);
+  const [newName, setNewName] = useState(displayName);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   const supabase = createClient();
@@ -15,7 +32,7 @@ export default function FolderCard({ folder }: { folder: any }) {
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Hapus folder "${folder.name}"? Catatan di dalamnya tidak akan terhapus.`)) return;
+    if (!confirm(`Hapus folder "${displayName}"? Catatan di dalamnya tidak akan terhapus.`)) return;
     setDeleting(true);
 
     // Unlink notes inside this folder first
@@ -32,14 +49,23 @@ export default function FolderCard({ folder }: { folder: any }) {
 
   const handleRename = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || newName.trim() === folder.name) {
+    if (!newName.trim() || newName.trim() === displayName) {
       setEditing(false);
       return;
     }
     setSaving(true);
+
+    // Maintain JSON structure on rename
+    const updatedNameJson = JSON.stringify({
+      name: newName.trim(),
+      description: description,
+      color: color,
+      emoji: emoji
+    });
+
     const { error } = await supabase
       .from('folders')
-      .update({ name: newName.trim() })
+      .update({ name: updatedNameJson })
       .eq('id', folder.id);
     if (!error) {
       router.refresh();
@@ -54,21 +80,21 @@ export default function FolderCard({ folder }: { folder: any }) {
     return (
       <form
         onSubmit={handleRename}
-        className="bg-[var(--surface)] border-2 border-[var(--accent)] p-5 rounded-2xl flex items-center gap-3 shadow-sm"
+        className="bg-[var(--surface)] border-2 border-[var(--accent)] p-3 sm:p-5 rounded-xl sm:rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-sm"
       >
-        <div className="w-10 h-10 bg-[var(--surface-2)] rounded-xl flex items-center justify-center flex-shrink-0">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--surface-2)] rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0" style={color ? { backgroundColor: `${color}15`, color: color } : {}}>
+          <span className="text-sm sm:text-base">{emoji}</span>
         </div>
         <input
           autoFocus
           value={newName}
           onChange={e => setNewName(e.target.value)}
-          className="flex-1 text-sm font-medium bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1 focus:outline-none focus:border-[var(--accent)]"
+          className="flex-1 text-xs sm:text-sm font-medium bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1 focus:outline-none focus:border-[var(--accent)]"
         />
-        <button type="submit" disabled={saving} className="text-xs font-semibold bg-[var(--accent)] text-[var(--accent-fg)] px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50">
-          {saving ? 'Menyimpan...' : 'Simpan'}
+        <button type="submit" disabled={saving} className="text-[10px] sm:text-xs font-semibold bg-[var(--accent)] text-[var(--accent-fg)] px-2.5 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50">
+          {saving ? 'Simpan...' : 'Simpan'}
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-1.5 rounded-lg hover:bg-[var(--surface-2)]">
+        <button type="button" onClick={() => setEditing(false)} className="text-[10px] sm:text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-1.5 rounded-lg hover:bg-[var(--surface-2)]">
           Batal
         </button>
       </form>
@@ -78,15 +104,18 @@ export default function FolderCard({ folder }: { folder: any }) {
   return (
     <Link
       href={`/dashboard?folder=${folder.id}`}
-      className="bg-[var(--surface)] border border-[var(--border)] p-5 rounded-2xl hover:border-[var(--text-muted)] hover:shadow-md transition-all flex items-start justify-between gap-4 group"
+      className="bg-[var(--surface)] border border-[var(--border)] p-3 sm:p-5 rounded-xl sm:rounded-2xl hover:border-[var(--text-muted)] hover:shadow-md transition-all flex items-start justify-between gap-2.5 sm:gap-4 group min-w-0"
     >
-      <div className="flex items-start gap-4 min-w-0">
-        <div className="w-10 h-10 bg-[var(--surface-2)] rounded-xl flex items-center justify-center text-[var(--text-secondary)] flex-shrink-0">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <div className="flex items-start gap-2.5 sm:gap-4 min-w-0">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--surface-2)] rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0" style={color ? { backgroundColor: `${color}15`, color: color } : {}}>
+          <span className="text-sm sm:text-base">{emoji}</span>
         </div>
         <div className="min-w-0">
-          <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate">{folder.name}</h3>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">{folder.notes?.length || 0} catatan</p>
+          <h3 className="font-semibold text-xs sm:text-sm text-[var(--text-primary)] truncate">{displayName}</h3>
+          {description && (
+            <p className="text-[9px] sm:text-[10px] text-[var(--text-muted)] truncate max-w-[120px] mt-0.5">{description}</p>
+          )}
+          <p className="text-[9px] sm:text-xs text-[var(--text-muted)] mt-0.5">{folder.notes?.length || 0} catatan</p>
         </div>
       </div>
 

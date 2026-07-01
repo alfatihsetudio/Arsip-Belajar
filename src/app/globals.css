@@ -2,19 +2,19 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --bg: #fafafa;
+  --bg: #f4f4f5;
   --surface: #ffffff;
-  --surface-2: #f4f4f5;
-  --border: #e4e4e7;
+  --surface-2: #e4e4e7;
+  --border: #d4d4d8;
   --text-primary: #09090b;
-  --text-secondary: #71717a;
+  --text-secondary: #52525b;
   --text-muted: #a1a1aa;
   --accent: #18181b;
   --accent-fg: #fafafa;
   --premium: #f59e0b;
   --premium-fg: #ffffff;
   --danger: #ef4444;
-  --radius: 12px;
+  --radius: 14px;
   --sidebar-width: 260px;
 }
 
@@ -64,3 +64,65 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .animate-fadeIn { animation: fadeIn 0.2s ease forwards; }
 .animate-spin { animation: spin 0.7s linear infinite; }
+
+/* Solid Premium Cards (replaces transparent liquid glass) */
+.glass-effect, .liquid-glass {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 
+    0 10px 25px -5px rgba(9, 9, 11, 0.03),
+    0 8px 10px -6px rgba(9, 9, 11, 0.03);
+}
+
+.liquid-glass-btn {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.liquid-action-btn {
+  background-color: var(--accent);
+  color: var(--accent-fg);
+  border: 1px solid var(--accent);
+  box-shadow: 0 4px 12px rgba(9, 9, 11, 0.1);
+}
+
+/* Premium Dark Mode Theme Variables (Solid Charcoal Black) */
+:root.dark {
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface-2: #27272a;
+  --border: #3f3f46;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent: #fafafa;
+  --accent-fg: #18181b;
+}
+
+:root.dark .glass-effect, :root.dark .liquid-glass {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.4),
+    0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
+:root.dark .liquid-glass-btn {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+/* Liquid theme wave ripple animation */
+.theme-ripple {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99999;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.9s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.5s ease-out;
+  box-shadow: 0 0 100px rgba(0,0,0,0.2);
+}
+.theme-ripple.active {
+  transform: translate(-50%, -50%) scale(3.5);
+}

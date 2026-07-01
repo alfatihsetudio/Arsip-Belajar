@@ -15,7 +15,14 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const title = formData.get('title') as string;
-    const folderId = formData.get('folder_id') as string | null;
+    const folderIdRaw = formData.get('folder_id') as string | null;
+    
+    console.log('API RECEIVED folder_id:', folderIdRaw);
+    
+    const folderId = (folderIdRaw && folderIdRaw !== 'null' && folderIdRaw !== 'undefined' && folderIdRaw.trim() !== '')
+      ? folderIdRaw.trim()
+      : null;
+      
     const imageFiles = formData.getAll('images') as File[];
 
     if (!imageFiles || imageFiles.length === 0) {
@@ -67,16 +74,41 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const prompt = `You are an expert educational notes transcriber. Extract text from the image. 
+    const prompt = `You are an expert educational notes transcriber. 
+Understand the material from the whiteboard/images deeply. Do NOT transcribe strictly chronologically or spatially (e.g., left to right, top to bottom) if that doesn't make educational sense.
+Instead, understand the whiteboard content, analyze the topic, and write the notes structured by educational priority:
+1. Identify and write the MOST IMPORTANT concepts, main formulas, or core theories first.
+2. Follow up with sub-points, detailed explanations, examples, and secondary details.
+3. Organize everything into a beautiful, neat, and highly structured format.
+
 CRITICAL RULES: 
-- Output strictly in standard Markdown.
-- NEVER use multiple spaces or tabs for alignment. 
-- Keep bullet points simple and standard: \`- text\`.
-- Do not lose any words. If there is a label before a parenthesis (e.g., 'Experience: (ever, never, once)'), transcribe the label exactly.
-- Structure it beautifully with # Headings, - Bullet points, and **Bold** text for emphasis. Make it read like a professional textbook.`;
+- Output strictly in PLAIN TEXT. 
+- NEVER use Markdown symbols (do NOT use #, ##, ###, **, *, _, backticks, or markdown tables).
+- For headings, use UPPERCASE text on their own line.
+- For bullet points, use simple dashes (e.g. - text) without any bolding or symbols.
+- Do not lose any words or equations.`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
     const transcribedText = result.response.text();
+
+    // AI Smart Tagging generation
+    let aiTags: string[] = [];
+    try {
+      const tagPrompt = `Analyze this educational note and suggest 1 to 3 single-word tags (lowercase, simple, e.g. "grammar", "math", "physics", "indonesia") that represent its subjects. 
+      Output strictly as a valid JSON string array (e.g. ["grammar", "english"]). Do not wrap in markdown, do not write explanations.
+      
+      Note:
+      ${transcribedText}`;
+      const tagResult = await model.generateContent(tagPrompt);
+      const tagResultText = tagResult.response.text().trim();
+      let cleanedTagJson = tagResultText;
+      if (cleanedTagJson.startsWith('```')) {
+        cleanedTagJson = cleanedTagJson.replace(/^```json\s*/, '').replace(/```$/, '').trim();
+      }
+      aiTags = JSON.parse(cleanedTagJson);
+    } catch (tagErr) {
+      console.error('Failed to generate AI tags:', tagErr);
+    }
 
     // 3. Save note to database
     const { data: note, error: noteError } = await supabase
@@ -85,7 +117,7 @@ CRITICAL RULES:
         user_id: user.id, 
         title: title.trim(), 
         transcribed_text: transcribedText,
-        folder_id: folderId || null
+        folder_id: folderId
       })
       .select()
       .single();
@@ -104,6 +136,43 @@ CRITICAL RULES:
     }));
 
     await supabase.from('note_media').insert(mediaInserts);
+
+    // 5. Connect AI generated tags
+    if (Array.isArray(aiTags) && aiTags.length > 0) {
+      for (const tagName of aiTags) {
+        const cleanName = tagName.trim().toLowerCase();
+        if (!cleanName) continue;
+        try {
+          let { data: existingTag } = await supabase
+            .from('tags')
+            .select('id')
+            .eq('name', cleanName)
+            .eq('user_id', user.id)
+            .maybeSingle();
+            
+          let tagId = existingTag?.id;
+          
+          if (!tagId) {
+            const { data: newTag, error: newTagErr } = await supabase
+              .from('tags')
+              .insert({ name: cleanName, user_id: user.id })
+              .select('id')
+              .single();
+            if (!newTagErr && newTag) {
+              tagId = newTag.id;
+            }
+          }
+          
+          if (tagId) {
+            await supabase
+              .from('note_tags')
+              .insert({ note_id: note.id, tag_id: tagId });
+          }
+        } catch (tagLinkErr) {
+          console.error('Tag link error:', tagLinkErr);
+        }
+      }
+    }
 
     return NextResponse.json({ noteId: note.id });
   } catch (error: any) {
