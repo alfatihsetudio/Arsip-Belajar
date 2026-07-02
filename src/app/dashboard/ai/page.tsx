@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import ReactMarkdown from 'react-markdown';
+import ShareModal from '@/components/notes/ShareModal';
 
 interface Message {
   id?: string;
@@ -44,6 +45,15 @@ export default function AIChatPage() {
   const [noteSearch, setNoteSearch] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
+  // Rename session states
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  // Share session states
+  const [sharingNoteId, setSharingNoteId] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [sharingNotesInfo, setSharingNotesInfo] = useState<{ visibility: 'private' | 'restricted' | 'public'; allowed_emails: string[] }>({ visibility: 'private', allowed_emails: [] });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
@@ -57,6 +67,97 @@ export default function AIChatPage() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, loading]);
+
+  const handleShareSession = async () => {
+    if (!currentSessionId || messages.length === 0) {
+      alert('Tidak ada obrolan aktif untuk dibagikan.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Anda harus login terlebih dahulu');
+
+      // Find if this session is already exported as a note
+      const sessionTitle = sessions.find(s => s.id === currentSessionId)?.title || 'Obrolan AI';
+      const noteTitle = `💬 Riwayat Obrolan: ${sessionTitle}`;
+
+      const { data: existingNote } = await supabase
+        .from('notes')
+        .select('id, visibility, allowed_emails')
+        .eq('user_id', user.id)
+        .eq('title', noteTitle)
+        .limit(1)
+        .maybeSingle();
+
+      // Format transkrip tanya-jawab yang rapi
+      const formattedTranscript = messages.map(msg => 
+        `### ${msg.role === 'user' ? '🙋‍♂️ Pengguna' : '🤖 Asisten AI'}\n${msg.content}\n`
+      ).join('\n---\n\n');
+
+      if (existingNote) {
+        // Update existing note transcript content
+        await supabase
+          .from('notes')
+          .update({ transcribed_text: formattedTranscript })
+          .eq('id', existingNote.id);
+
+        setSharingNoteId(existingNote.id);
+        setSharingNotesInfo({
+          visibility: (existingNote.visibility as any) || 'private',
+          allowed_emails: existingNote.allowed_emails || []
+        });
+        setIsShareModalOpen(true);
+      } else {
+        // Create new note
+        const { data: newNote, error: createError } = await supabase
+          .from('notes')
+          .insert({
+            user_id: user.id,
+            title: noteTitle,
+            transcribed_text: formattedTranscript,
+            visibility: 'private',
+            allowed_emails: []
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+
+        setSharingNoteId(newNote.id);
+        setSharingNotesInfo({ visibility: 'private', allowed_emails: [] });
+        setIsShareModalOpen(true);
+      }
+    } catch (err: any) {
+      alert('Gagal memproses berbagi obrolan: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRenameSession = async (id: string) => {
+    if (!editTitle.trim()) {
+      setEditingSessionId(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/ai/sessions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editTitle.trim() }),
+      });
+      if (res.ok) {
+        setSessions(prev =>
+          prev.map(s => (s.id === id ? { ...s, title: editTitle.trim() } : s))
+        );
+      }
+    } catch (e) {
+      console.error('Failed to rename session', e);
+    } finally {
+      setEditingSessionId(null);
+    }
+  };
 
   const loadSessions = async () => {
     try {
@@ -206,20 +307,20 @@ export default function AIChatPage() {
   return (
     <div className="flex-1 flex h-full overflow-hidden bg-[var(--surface)]">
 
-      {/* ─── Sidebar Overlay (mobile) ─── */}
+      {/* ─── Sidebar Overlay (mobile & desktop toggleable) ─── */}
       {sidebarOpen && (
         <div
-          className="md:hidden fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* ─── Sidebar ─── */}
       <aside className={`
-        fixed md:static inset-y-0 left-0 z-40 flex flex-col
-        w-52 bg-[var(--surface-2)] border-r border-[var(--border)]
+        fixed inset-y-0 right-0 z-40 flex flex-col
+        w-72 bg-white dark:bg-[var(--surface)] border-l border-[var(--border)] shadow-xl
         transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
         {/* Sidebar top */}
         <div className="flex items-center gap-2 px-3 py-3 border-b border-[var(--border)]">
@@ -231,7 +332,7 @@ export default function AIChatPage() {
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden w-6 h-6 rounded-md hover:bg-[var(--border)] transition-colors flex items-center justify-center text-[var(--text-muted)]">
+          <button onClick={() => setSidebarOpen(false)} className="w-6 h-6 rounded-md hover:bg-[var(--border)] transition-colors flex items-center justify-center text-[var(--text-muted)]">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
@@ -243,26 +344,71 @@ export default function AIChatPage() {
               <p className="text-[10px] text-[var(--text-muted)] text-center">Belum ada riwayat.<br/>Mulai chat baru!</p>
             </div>
           ) : (
-            sessions.map(s => (
-              <button
-                key={s.id}
-                onClick={() => selectSession(s.id)}
-                className={`group w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                  currentSessionId === s.id
-                    ? 'bg-[var(--surface)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <span className="flex-1 truncate text-[11px] font-medium">{s.title}</span>
-                <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0 group-hover:hidden">{formatTime(s.created_at)}</span>
-                <button
-                  onClick={(e) => deleteSession(s.id, e)}
-                  className="hidden group-hover:flex w-4 h-4 rounded items-center justify-center text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors flex-shrink-0"
+            sessions.map(s => {
+              const isEditing = editingSessionId === s.id;
+              return isEditing ? (
+                <div key={s.id} className="px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameSession(s.id);
+                      if (e.key === 'Escape') setEditingSessionId(null);
+                    }}
+                    autoFocus
+                    className="flex-1 min-w-0 bg-transparent text-[11px] font-medium text-[var(--text-primary)] focus:outline-none py-0.5"
+                  />
+                  <button
+                    onClick={() => handleRenameSession(s.id)}
+                    className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded"
+                    title="Simpan"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button
+                    onClick={() => setEditingSessionId(null)}
+                    className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded"
+                    title="Batal"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              ) : (
+                <div
+                  key={s.id}
+                  onClick={() => selectSession(s.id)}
+                  className={`group w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer ${
+                    currentSessionId === s.id
+                      ? 'bg-[var(--surface)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]'
+                  }`}
                 >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                </button>
-              </button>
-            ))
+                  <span className="flex-1 truncate text-[11px] font-medium">{s.title}</span>
+                  <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0 group-hover:hidden">{formatTime(s.created_at)}</span>
+                  <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSessionId(s.id);
+                        setEditTitle(s.title);
+                      }}
+                      className="w-4 h-4 rounded flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors"
+                      title="Ganti Nama"
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button
+                      onClick={(e) => deleteSession(s.id, e)}
+                      className="w-4 h-4 rounded flex items-center justify-center text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                      title="Hapus"
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </aside>
@@ -271,18 +417,32 @@ export default function AIChatPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Top bar */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)] flex-shrink-0">
-          <p className="text-sm font-semibold text-[var(--text-primary)] flex-1 leading-none">Asisten Belajar AI</p>
+        <div className="flex items-center gap-2 sm:gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)] flex-shrink-0">
+          <p className="text-xs sm:text-sm font-semibold text-[var(--text-primary)] flex-1 leading-none">Asisten Belajar AI</p>
+          
+          {currentSessionId && messages.length > 0 && (
+            <button
+              onClick={handleShareSession}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50"
+              title="Bagikan Obrolan Ini"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              Bagikan
+            </button>
+          )}
+
           <button
             onClick={createNewChat}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Baru
           </button>
           <button
-            onClick={() => setSidebarOpen(true)}
-            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors"
+            title="Riwayat Obrolan"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
           </button>
@@ -522,6 +682,20 @@ export default function AIChatPage() {
           </div>
         );
       })()}
+      {/* Share Session Modal */}
+      {sharingNoteId && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => {
+            setIsShareModalOpen(false);
+            setSharingNoteId(null);
+          }}
+          itemId={sharingNoteId}
+          itemType="note"
+          initialVisibility={sharingNotesInfo.visibility}
+          initialAllowedEmails={sharingNotesInfo.allowed_emails}
+        />
+      )}
     </div>
   );
 }

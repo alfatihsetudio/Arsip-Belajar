@@ -66,3 +66,35 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await req.json();
+    const { title } = body;
+
+    if (!title || !title.trim()) {
+      return NextResponse.json({ error: 'Judul tidak boleh kosong' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('ai_chat_sessions')
+      .update({ title: title.trim() })
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('API PUT Session Rename Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

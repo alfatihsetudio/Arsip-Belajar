@@ -61,14 +61,19 @@ export default function ShareModal({
     }
 
     const table = itemType === 'folder' ? 'folders' : 'notes';
-    const { error } = await supabase
-      .from(table)
-      .update({
-        visibility: visibility,
-        allowed_emails: emails,
-      })
-      .eq('id', itemId)
-      .eq('user_id', user.id);
+    const isBulk = itemId.includes(',');
+    let query = supabase.from(table).update({
+      visibility: visibility,
+      allowed_emails: emails,
+    });
+
+    if (isBulk) {
+      query = query.in('id', itemId.split(',')).eq('user_id', user.id);
+    } else {
+      query = query.eq('id', itemId).eq('user_id', user.id);
+    }
+
+    const { error } = await query;
 
     setIsSaving(false);
 

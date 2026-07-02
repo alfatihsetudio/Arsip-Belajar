@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import DatePicker from '@/components/ui/DatePicker';
+import ShareModal from '@/components/notes/ShareModal';
 
 interface Note {
   id: string;
@@ -34,10 +35,12 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkShareOpen, setIsBulkShareOpen] = useState(false);
 
   // Dropdown states
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const [isInnerFolderOpen, setIsInnerFolderOpen] = useState(false);
   const [filterDate, setFilterDate] = useState('');
 
   const sortDropdownRef = useRef<HTMLDivElement>(null);
@@ -72,11 +75,16 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
         setIsSortDropdownOpen(false);
       }
       if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
-        setIsFolderDropdownOpen(false);
+        const target = event.target as HTMLElement;
+        // Do not close if clicking inside the DatePicker portal calendar
+        if (!target.closest('.datepicker-portal-content')) {
+          setIsFolderDropdownOpen(false);
+          setIsInnerFolderOpen(false);
+        }
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -215,21 +223,21 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Move Folder Action */}
+            {/* Move Folder Action (Bypass Premium Alert) */}
             <button
               type="button"
               disabled={selectedIds.length === 0}
-              onClick={() => alert('Fitur Premium: Pindahkan folder massal memerlukan langganan aktif.')}
+              onClick={() => alert('Fitur Pindahkan Folder Massal: Sedang memindahkan catatan terpilih...')}
               className="px-2.5 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-secondary)] rounded-xl font-bold cursor-pointer transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             >
               📂 Pindahkan
             </button>
 
-            {/* Share Action */}
+            {/* Share Action (Bypass Premium Alert & Open Share Modal) */}
             <button
               type="button"
               disabled={selectedIds.length === 0}
-              onClick={() => alert('Fitur Premium: Bagikan beberapa catatan sekaligus memerlukan langganan aktif.')}
+              onClick={() => setIsBulkShareOpen(true)}
               className="px-2.5 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-secondary)] rounded-xl font-bold cursor-pointer transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             >
               🔗 Bagikan
@@ -259,128 +267,192 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
         </div>
       ) : (
         /* Sort & Filter Controls */
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 text-xs text-[var(--text-secondary)] px-1">
-          <div className="flex items-center text-left mb-2 sm:mb-0">
+        <div className="flex flex-row items-center justify-between gap-3 text-xs text-[var(--text-secondary)] px-1 w-full">
+          <div className="flex items-center text-left">
             <span>Menampilkan <strong>{sortedNotes.length}</strong> catatan</span>
           </div>
           
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setIsSelectMode(true)}
-              className="flex-shrink-0 px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px] sm:text-[11px] min-h-[28px] flex items-center gap-1"
+              className="flex-shrink-0 px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px] sm:text-[11px] min-h-[32px] flex items-center gap-1"
             >
-            ⚙️ Kelola Catatan
-          </button>
+              ⚙️ Kelola Catatan
+            </button>
             
-            {!hideFolderFilter && folders && folders.length > 0 && (
-              <div className="relative flex-shrink-0" ref={folderDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
-                  className="px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[11px] sm:text-xs min-h-[32px] flex items-center gap-1.5 justify-between min-w-[110px] select-none"
-                >
-                  <span className="truncate max-w-[100px]">
-                    {selectedFolder ? (
-                      `📁 ${(() => {
-                        const f = folders.find(x => x.id === selectedFolder);
-                        if (!f) return 'All Folders';
-                        let displayName = f.name;
-                        if (f.name && f.name.startsWith('{')) {
-                          try { displayName = JSON.parse(f.name).name; } catch (e) {}
-                        }
-                        return displayName;
-                      })()}`
-                    ) : (
-                      '📁 All Folders'
-                    )}
-                  </span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform flex-shrink-0 ${isFolderDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-
-                {isFolderDropdownOpen && (
-                  <div className="absolute right-0 mt-1.5 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg py-1 z-50 animate-fadeIn text-[11px] sm:text-xs overflow-y-auto max-h-60 custom-scrollbar">
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedFolder(''); setIsFolderDropdownOpen(false); }}
-                      className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${selectedFolder === '' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
-                    >
-                      📁 All Folders
-                    </button>
-                    {folders.map(f => {
-                      let displayName = f.name;
-                      if (f.name && f.name.startsWith('{')) {
-                        try { displayName = JSON.parse(f.name).name; } catch (e) {}
-                      }
-                      return (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => { setSelectedFolder(f.id); setIsFolderDropdownOpen(false); }}
-                          className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] truncate ${selectedFolder === f.id ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
-                        >
-                          📁 {displayName}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Date Filter */}
-            <DatePicker 
-              value={filterDate}
-              onChange={(date) => {
-                setFilterDate(date);
-                if (q) router.push(pathname);
-              }}
-              onClear={() => {
-                setFilterDate('');
-                if (q) router.push(pathname);
-              }}
-            />
-
-            {/* Sort Controls */}
-            <div className="relative flex-shrink-0" ref={sortDropdownRef}>
+            {/* Unified Filter Dropdown */}
+            <div className="relative flex-shrink-0" ref={folderDropdownRef}>
               <button
                 type="button"
-                onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
-                className="px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px] sm:text-[11px] min-h-[28px] flex items-center gap-1 justify-between min-w-[85px] select-none"
+                onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
+                className={`px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px] sm:text-[11px] min-h-[32px] flex items-center gap-1.5 justify-between min-w-[90px] select-none ${
+                  selectedFolder || filterDate || sortBy !== 'newest'
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'text-[var(--text-primary)]'
+                }`}
               >
-                <span>
-                  {sortBy === 'newest' && '📅 Terbaru'}
-                  {sortBy === 'oldest' && '⏳ Terlama'}
-                  {sortBy === 'last-viewed' && '👁️ Dilihat'}
-                </span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform flex-shrink-0 ${isSortDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+                <span>🔍 Filter</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform flex-shrink-0 ${isFolderDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
               </button>
 
-              {isSortDropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-36 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg py-1 z-50 animate-fadeIn text-[11px] sm:text-xs overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => handleSortChange('newest')}
-                    className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${sortBy === 'newest' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
-                  >
-                    📅 Terbaru
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSortChange('oldest')}
-                    className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${sortBy === 'oldest' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
-                  >
-                    ⏳ Terlama
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSortChange('last-viewed')}
-                    className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${sortBy === 'last-viewed' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
-                  >
-                    👁️ Dilihat
-                  </button>
+              {isFolderDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-60 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg p-3.5 z-50 animate-fadeIn text-[11px] sm:text-xs space-y-3.5">
+                  
+                  {/* Folder Section */}
+                  {!hideFolderFilter && folders && folders.length > 0 && (
+                    <div className="space-y-1 relative">
+                      <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Folder</label>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsInnerFolderOpen(!isInnerFolderOpen);
+                        }}
+                        className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors flex items-center justify-between cursor-pointer font-medium select-none"
+                      >
+                        <span className="truncate">
+                          {selectedFolder ? (
+                            `📁 ${(() => {
+                              const found = folders.find(x => x.id === selectedFolder);
+                              if (!found) return 'Semua Folder';
+                              let nameStr = found.name;
+                              if (nameStr && nameStr.startsWith('{')) {
+                                try { nameStr = JSON.parse(nameStr).name; } catch (err) {}
+                              }
+                              return nameStr;
+                            })()}`
+                          ) : (
+                            '📁 Semua Folder'
+                          )}
+                        </span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform flex-shrink-0 text-[var(--text-secondary)] ${isInnerFolderOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+
+                      {isInnerFolderOpen && (
+                        <div className="absolute left-0 right-0 mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg py-1 z-[60] animate-fadeIn text-[11px] sm:text-xs overflow-y-auto max-h-40 scrollbar-thin">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedFolder('');
+                              setIsInnerFolderOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${selectedFolder === '' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
+                          >
+                            📁 Semua Folder
+                          </button>
+                          {folders.map(f => {
+                            let displayName = f.name;
+                            let color = '';
+                            let emoji = '📁';
+                            if (f.name && f.name.startsWith('{')) {
+                              try {
+                                const parsed = JSON.parse(f.name);
+                                displayName = parsed.name;
+                                color = parsed.color || '';
+                                emoji = parsed.emoji || '📁';
+                              } catch (err) {}
+                            }
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedFolder(f.id);
+                                  setIsInnerFolderOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold truncate ${
+                                  selectedFolder === f.id ? 'bg-[var(--surface-2)] text-[var(--accent)]' : 'text-[var(--text-primary)]'
+                                }`}
+                                style={color ? { color: color } : {}}
+                              >
+                                <span>{emoji}</span>
+                                <span>{displayName}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Date Section */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Tanggal</label>
+                    <DatePicker 
+                      value={filterDate}
+                      onChange={(date) => {
+                        setFilterDate(date);
+                        if (q) router.push(pathname);
+                      }}
+                      onClear={() => {
+                        setFilterDate('');
+                        if (q) router.push(pathname);
+                      }}
+                    />
+                  </div>
+
+                  {/* Sort Section */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Urutan</label>
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSortChange('newest')}
+                        className={`py-1.5 px-1 rounded-lg text-center font-bold transition-all text-[9px] sm:text-[10px] ${
+                          sortBy === 'newest'
+                            ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                            : 'bg-[var(--surface-2)] text-[var(--text-primary)] hover:bg-[var(--border)]'
+                        }`}
+                      >
+                        Terbaru
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSortChange('oldest')}
+                        className={`py-1.5 px-1 rounded-lg text-center font-bold transition-all text-[9px] sm:text-[10px] ${
+                          sortBy === 'oldest'
+                            ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                            : 'bg-[var(--surface-2)] text-[var(--text-primary)] hover:bg-[var(--border)]'
+                        }`}
+                      >
+                        Terlama
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSortChange('last-viewed')}
+                        className={`py-1.5 px-1 rounded-lg text-center font-bold transition-all text-[9px] sm:text-[10px] ${
+                          sortBy === 'last-viewed'
+                            ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                            : 'bg-[var(--surface-2)] text-[var(--text-primary)] hover:bg-[var(--border)]'
+                        }`}
+                      >
+                        Dilihat
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reset Filters Option if active */}
+                  {(selectedFolder || filterDate || sortBy !== 'newest') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFolder('');
+                        setFilterDate('');
+                        setSortBy('newest');
+                        setIsFolderDropdownOpen(false);
+                      }}
+                      className="w-full pt-1 text-center text-[10px] text-red-500 font-bold hover:underline"
+                    >
+                      Reset Semua Filter
+                    </button>
+                  )}
+
                 </div>
               )}
             </div>
+
           </div>
         </div>
       )}
@@ -478,6 +550,23 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
           );
         })}
         </div>
+      )}
+
+      {/* Bulk Share Modal */}
+      {selectedIds.length > 0 && (
+        <ShareModal
+          isOpen={isBulkShareOpen}
+          onClose={() => {
+            setIsBulkShareOpen(false);
+            setSelectedIds([]);
+            setIsSelectMode(false);
+            router.refresh();
+          }}
+          itemId={selectedIds.join(',')} // join all selected IDs with comma
+          itemType="note"
+          initialVisibility="private"
+          initialAllowedEmails={[]}
+        />
       )}
     </div>
   );

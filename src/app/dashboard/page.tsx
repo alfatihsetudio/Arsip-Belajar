@@ -23,6 +23,7 @@ export default async function DashboardPage({
       note_media(media_url, order_index)
     `)
     .eq('user_id', user.id)
+    .not('title', 'like', '💬 Riwayat Obrolan:%')
     .order('created_at', { ascending: false });
 
   if (q) {

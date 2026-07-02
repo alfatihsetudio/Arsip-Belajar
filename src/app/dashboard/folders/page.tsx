@@ -28,11 +28,7 @@ export default async function FoldersPage({
   const { data: folders } = await query;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Folders</h1>
-      </div>
-
+    <div className="max-w-5xl mx-auto animate-fadeIn">
       <FoldersContainer initialFolders={folders || []} q={q} userId={user.id} />
     </div>
   );

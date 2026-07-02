@@ -56,6 +56,7 @@ export default async function DashboardFolderPage({
     `)
     .eq('user_id', user.id)
     .eq('folder_id', id)
+    .not('title', 'like', '💬 Riwayat Obrolan:%')
     .order('created_at', { ascending: false });
 
   if (q) {

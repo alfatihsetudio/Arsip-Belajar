@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface DatePickerProps {
   value: string; // YYYY-MM-DD
@@ -9,6 +10,7 @@ interface DatePickerProps {
 
 export default function DatePicker({ value, onChange, onClear, placeholder = 'Tanggal' }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   
   // Date currently shown in the calendar view
   const [viewDate, setViewDate] = useState(() => {
@@ -18,13 +20,29 @@ export default function DatePicker({ value, onChange, onClear, placeholder = 'Ta
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (value) {
+      setViewDate(new Date(value));
+    } else {
+      setViewDate(new Date());
+    }
+  }, [value]);
+
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+        // Only close if click is not on the portal-rendered calendar
+        const target = event.target as HTMLElement;
+        if (!target.closest('.datepicker-portal-content')) {
+          setIsOpen(false);
+        }
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   const handlePrevMonth = () => {
@@ -54,7 +72,119 @@ export default function DatePicker({ value, onChange, onClear, placeholder = 'Ta
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
-  const displayDate = value ? new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const displayDate = (() => {
+    if (!value) return '';
+    const parts = value.split('-');
+    if (parts.length !== 3) return '';
+    const y = parts[0];
+    const mIdx = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const mName = monthNames[mIdx] ? monthNames[mIdx].substring(0, 3) : '';
+    return `${d} ${mName} ${y}`;
+  })();
+
+  const calendarModal = isOpen && mounted
+    ? createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/20 backdrop-blur-[4px] p-4 animate-fadeIn">
+          <div 
+            className="absolute inset-0" 
+            onClick={() => setIsOpen(false)} 
+          />
+          <div className="datepicker-portal-content relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.18)] p-4 w-full max-w-[280px] sm:max-w-xs animate-scaleIn select-none z-[10000]">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePrevMonth();
+                }} 
+                type="button" 
+                className="p-1.5 hover:bg-[var(--surface-2)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <div className="font-extrabold text-base text-[var(--text-primary)]">
+                {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
+              </div>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNextMonth();
+                }} 
+                type="button" 
+                className="p-1.5 hover:bg-[var(--surface-2)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+
+            {/* Days Header */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['Mg', 'Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb'].map(day => (
+                <div key={day} className="text-center text-[10px] font-bold text-[var(--text-muted)] py-1 uppercase tracking-wider">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 gap-1.5">
+              {blanks.map(blank => (
+                <div key={`blank-${blank}`} className="p-1" />
+              ))}
+              {days.map(day => {
+                const yyyy = viewDate.getFullYear();
+                const mm = String(viewDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(day).padStart(2, '0');
+                const currentItemDate = `${yyyy}-${mm}-${dd}`;
+                const isSelected = currentItemDate === value;
+                
+                // Get today's local date in YYYY-MM-DD format
+                const todayObj = new Date();
+                const todayYYYY = todayObj.getFullYear();
+                const todayMM = String(todayObj.getMonth() + 1).padStart(2, '0');
+                const todayDD = String(todayObj.getDate()).padStart(2, '0');
+                const isToday = currentItemDate === `${todayYYYY}-${todayMM}-${todayDD}`;
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDayClick(day);
+                    }}
+                    className={`
+                      w-full aspect-square flex items-center justify-center text-sm rounded-xl transition-all font-semibold
+                      ${isSelected 
+                        ? 'bg-[var(--accent)] text-[var(--accent-fg)] shadow-md transform scale-105' 
+                        : isToday
+                          ? 'bg-[var(--surface-2)] text-[var(--text-primary)] border-2 border-[var(--accent)]'
+                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-2)] hover:scale-110'
+                      }
+                    `}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button 
+              type="button" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }} 
+              className="mt-4 w-full py-2 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-xl font-bold text-xs transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   return (
     <div className="relative flex-shrink-0" ref={popoverRef}>
@@ -82,79 +212,7 @@ export default function DatePicker({ value, onChange, onClear, placeholder = 'Ta
         )}
       </button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 animate-fadeIn">
-          <div 
-            className="absolute inset-0" 
-            onClick={() => setIsOpen(false)} 
-          />
-          <div className="relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-4 w-full max-w-[280px] sm:max-w-xs animate-scaleIn select-none z-[10000]">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <button onClick={handlePrevMonth} type="button" className="p-1.5 hover:bg-[var(--surface-2)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-              </button>
-              <div className="font-extrabold text-base text-[var(--text-primary)]">
-                {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
-              </div>
-              <button onClick={handleNextMonth} type="button" className="p-1.5 hover:bg-[var(--surface-2)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </button>
-            </div>
-
-            {/* Days Header */}
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {['Mg', 'Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb'].map(day => (
-                <div key={day} className="text-center text-[10px] font-bold text-[var(--text-muted)] py-1 uppercase tracking-wider">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-1.5">
-              {blanks.map(blank => (
-                <div key={`blank-${blank}`} className="p-1" />
-              ))}
-              {days.map(day => {
-                const yyyy = viewDate.getFullYear();
-                const mm = String(viewDate.getMonth() + 1).padStart(2, '0');
-                const dd = String(day).padStart(2, '0');
-                const currentItemDate = `${yyyy}-${mm}-${dd}`;
-                const isSelected = currentItemDate === value;
-                const isToday = currentItemDate === new Date().toLocaleDateString('en-CA');
-
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => handleDayClick(day)}
-                    className={`
-                      w-full aspect-square flex items-center justify-center text-sm rounded-xl transition-all font-semibold
-                      ${isSelected 
-                        ? 'bg-[var(--accent)] text-[var(--accent-fg)] shadow-md transform scale-105' 
-                        : isToday
-                          ? 'bg-[var(--surface-2)] text-[var(--text-primary)] border-2 border-[var(--accent)]'
-                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-2)] hover:scale-110'
-                      }
-                    `}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-            
-            <button 
-              type="button" 
-              onClick={() => setIsOpen(false)} 
-              className="mt-4 w-full py-2 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-xl font-bold text-xs transition-colors"
-            >
-              Tutup
-            </button>
-          </div>
-        </div>
-      )}
+      {calendarModal}
     </div>
   );
 }
