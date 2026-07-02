@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@/lib/supabase/client';
 
 interface ShareModalProps {
@@ -24,9 +25,15 @@ export default function ShareModal({
   const [isSaving, setIsSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const supabase = createClient();
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handleAddEmail = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,8 +84,8 @@ export default function ShareModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
       <div 
         className="bg-[var(--bg)] border border-[var(--border)] rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slideUp"
         onClick={e => e.stopPropagation()}
@@ -231,4 +238,6 @@ export default function ShareModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
