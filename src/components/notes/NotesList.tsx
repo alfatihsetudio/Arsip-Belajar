@@ -62,10 +62,14 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
 
     setIsDeleting(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+
       const { error } = await supabase
         .from('notes')
         .delete()
-        .in('id', selectedIds);
+        .in('id', selectedIds)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 

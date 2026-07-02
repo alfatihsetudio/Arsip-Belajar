@@ -22,6 +22,13 @@ export async function POST(req: NextRequest) {
     const folderId = (folderIdRaw && folderIdRaw !== 'null' && folderIdRaw !== 'undefined' && folderIdRaw.trim() !== '')
       ? folderIdRaw.trim()
       : null;
+
+    if (folderId) {
+      const { data: folderCheck } = await supabase.from('folders').select('id').eq('id', folderId).eq('user_id', user.id).single();
+      if (!folderCheck) {
+        return NextResponse.json({ error: 'Folder not found or access denied' }, { status: 403 });
+      }
+    }
       
     const imageFiles = formData.getAll('images') as File[];
 

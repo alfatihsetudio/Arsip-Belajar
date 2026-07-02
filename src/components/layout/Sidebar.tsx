@@ -105,9 +105,15 @@ export default function Sidebar({ user }: { user: User }) {
       emoji: emoji
     });
 
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) {
+      setSaving(false);
+      return;
+    }
+
     const { error } = await supabase.from('folders').insert({
       name: folderNameJson,
-      user_id: user.id
+      user_id: authData.user.id
     });
 
     if (!error) {

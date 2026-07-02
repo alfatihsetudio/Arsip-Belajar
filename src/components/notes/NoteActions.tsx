@@ -38,6 +38,13 @@ export default function NoteActions({
         return;
       }
 
+      const { data: noteCheck } = await supabase.from('notes').select('id').eq('id', noteId).eq('user_id', user.id).single();
+      if (!noteCheck) {
+        await showAlert('Akses ditolak atau catatan tidak ditemukan.');
+        setDeleting(false);
+        return;
+      }
+
       // Delete child rows first to avoid foreign key violations
       const { error: mediaErr } = await supabase.from('note_media').delete().eq('note_id', noteId);
       if (mediaErr) console.error('Media delete error:', mediaErr);
