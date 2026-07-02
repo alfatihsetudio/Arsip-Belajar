@@ -7,7 +7,7 @@ interface Message {
   content: string;
 }
 
-export default function NoteChatAssistant({ noteId }: { noteId: string }) {
+export default function NoteChatAssistant({ noteId, isGuest = false }: { noteId: string; isGuest?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: 'Halo! Saya asisten belajarmu. Tanyakan apa saja mengenai materi catatan ini.' }
   ]);
@@ -28,6 +28,10 @@ export default function NoteChatAssistant({ noteId }: { noteId: string }) {
   }, [messages, loading]);
 
   const handleSendMessage = async (textToSend: string) => {
+    if (isGuest) {
+      window.location.href = '/';
+      return;
+    }
     if (!textToSend.trim() || loading) return;
 
     const userMessage: Message = { role: 'user', content: textToSend };
@@ -125,19 +129,31 @@ export default function NoteChatAssistant({ noteId }: { noteId: string }) {
 
       {/* Input Box */}
       <form 
-        onSubmit={(e) => { e.preventDefault(); handleSendMessage(input); }}
+        onSubmit={(e) => { 
+          e.preventDefault(); 
+          if (isGuest) {
+            window.location.href = '/';
+            return;
+          }
+          handleSendMessage(input); 
+        }}
         className="flex items-center gap-2 border-t border-[var(--border)] pt-2 flex-shrink-0"
       >
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="Tanyakan materi..."
+          onClick={() => {
+            if (isGuest) {
+              window.location.href = '/';
+            }
+          }}
+          placeholder={isGuest ? "Masuk untuk bertanya..." : "Tanyakan materi..."}
           disabled={loading}
           className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[var(--accent)] text-[var(--text-primary)] transition-all"
         />
         <button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={loading || (!isGuest && !input.trim())}
           className="w-8 h-8 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-40 cursor-pointer flex-shrink-0"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 interface Note {
   id: string;
@@ -22,8 +24,21 @@ interface NotesListProps {
 export default function NotesList({ initialNotes, q, folder, folders }: NotesListProps) {
   const [sortBy, setSortBy] = useState('newest');
   const [selectedFolder, setSelectedFolder] = useState(folder || '');
+  const [notesState, setNotesState] = useState<Note[]>(initialNotes);
   const [sortedNotes, setSortedNotes] = useState<Note[]>(initialNotes);
   const [lastViewed, setLastViewed] = useState<Record<string, number>>({});
+  
+  // Selection states
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    setNotesState(initialNotes);
+  }, [initialNotes]);
 
   // Load last viewed timestamps and sort preference from localStorage on mount (prevents SSR hydration mismatch)
   useEffect(() => {
@@ -40,9 +55,45 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
     }
   }, []);
 
-  // Filter and sort notes whenever sortBy, selectedFolder, initialNotes, or lastViewed changes
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmDelete = confirm(`Apakah Anda yakin ingin menghapus ${selectedIds.length} catatan yang dipilih? Tindakan ini tidak dapat dibatalkan.`);
+    if (!confirmDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('notes')
+        .delete()
+        .in('id', selectedIds);
+
+      if (error) throw error;
+
+      setNotesState(prev => prev.filter(n => !selectedIds.includes(n.id)));
+      setSelectedIds([]);
+      setIsSelectMode(false);
+      router.refresh();
+    } catch (err: any) {
+      alert('Gagal menghapus catatan: ' + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCardClick = (e: React.MouseEvent, noteId: string) => {
+    if (isSelectMode) {
+      e.preventDefault();
+      setSelectedIds(prev => 
+        prev.includes(noteId) 
+          ? prev.filter(id => id !== noteId) 
+          : [...prev, noteId]
+      );
+    }
+  };
+
+  // Filter and sort notes whenever sortBy, selectedFolder, notesState, or lastViewed changes
   useEffect(() => {
-    let filtered = [...initialNotes];
+    let filtered = [...notesState];
 
     if (selectedFolder) {
       filtered = filtered.filter((n) => n.folder?.id === selectedFolder);
@@ -82,7 +133,7 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
     });
 
     setSortedNotes(filtered);
-  }, [sortBy, selectedFolder, initialNotes, lastViewed]);
+  }, [sortBy, selectedFolder, notesState, lastViewed]);
 
   if (!sortedNotes || sortedNotes.length === 0) {
     return (
@@ -101,55 +152,127 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
 
   return (
     <div className="space-y-4">
-      {/* Sort & Filter Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-[var(--text-secondary)] px-1">
-        <span>Menampilkan <strong>{sortedNotes.length}</strong> catatan</span>
-        <div className="flex flex-row items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          {folders && folders.length > 0 && (
+      {/* Bulk Select Control Bar */}
+      {isSelectMode ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-[var(--surface)] border border-[var(--border)] rounded-2xl animate-fadeIn text-xs sm:text-sm shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-[var(--text-secondary)] font-semibold">Terpilih: <strong>{selectedIds.length}</strong> catatan</span>
+            <button
+              onClick={() => {
+                if (selectedIds.length === sortedNotes.length) {
+                  setSelectedIds([]);
+                } else {
+                  setSelectedIds(sortedNotes.map(n => n.id));
+                }
+              }}
+              className="text-[var(--accent)] hover:underline font-bold cursor-pointer text-xs"
+            >
+              {selectedIds.length === sortedNotes.length ? 'Batal Pilih' : 'Pilih Semua'}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Move Folder Action */}
+            <button
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={() => alert('Fitur Premium: Pindahkan folder massal memerlukan langganan aktif.')}
+              className="px-2.5 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-secondary)] rounded-xl font-bold cursor-pointer transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              📂 Pindahkan
+            </button>
+
+            {/* Share Action */}
+            <button
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={() => alert('Fitur Premium: Bagikan beberapa catatan sekaligus memerlukan langganan aktif.')}
+              className="px-2.5 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-secondary)] rounded-xl font-bold cursor-pointer transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              🔗 Bagikan
+            </button>
+
+            {/* Delete Action (Active) */}
+            <button
+              type="button"
+              disabled={selectedIds.length === 0 || isDeleting}
+              onClick={handleBulkDelete}
+              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-xs flex items-center gap-1"
+            >
+              🗑️ {isDeleting ? 'Menghapus...' : 'Hapus'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSelectMode(false);
+                setSelectedIds([]);
+              }}
+              className="px-3.5 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-xl font-bold cursor-pointer transition-all text-xs"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Sort & Filter Controls */
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-[var(--text-secondary)] px-1">
+          <div className="flex items-center gap-2">
+            <span>Menampilkan <strong>{sortedNotes.length}</strong> catatan</span>
+            <button
+              onClick={() => setIsSelectMode(true)}
+              className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px]"
+            >
+              ⚙️ Kelola Catatan
+            </button>
+          </div>
+          <div className="flex flex-row items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            {folders && folders.length > 0 && (
+              <select
+                value={selectedFolder}
+                onChange={(e) => setSelectedFolder(e.target.value)}
+                className="flex-1 sm:flex-initial px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer text-[11px] sm:text-xs transition-all hover:border-[var(--text-muted)] min-w-0"
+              >
+                <option value="">📁 All Folders</option>
+                {folders.map(f => {
+                  let displayName = f.name;
+                  if (f.name && f.name.startsWith('{')) {
+                    try { displayName = JSON.parse(f.name).name; } catch (e) {}
+                  }
+                  return (
+                    <option key={f.id} value={f.id}>📁 {displayName}</option>
+                  );
+                })}
+              </select>
+            )}
+
+            {/* Sort Controls */}
             <select
-              value={selectedFolder}
-              onChange={(e) => setSelectedFolder(e.target.value)}
+              value={sortBy}
+              onChange={(e) => {
+                const newSort = e.target.value;
+                setSortBy(newSort);
+                try {
+                  localStorage.setItem('notes_sort_by', newSort);
+                } catch (err) {
+                  console.error('Failed to save sort preference:', err);
+                }
+              }}
               className="flex-1 sm:flex-initial px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer text-[11px] sm:text-xs transition-all hover:border-[var(--text-muted)] min-w-0"
             >
-              <option value="">📁 All Folders</option>
-              {folders.map(f => {
-                let displayName = f.name;
-                if (f.name && f.name.startsWith('{')) {
-                  try { displayName = JSON.parse(f.name).name; } catch (e) {}
-                }
-                return (
-                  <option key={f.id} value={f.id}>📁 {displayName}</option>
-                );
-              })}
+              <option value="newest">📅 Terbaru</option>
+              <option value="oldest">⏳ Terlama</option>
+              <option value="last-viewed">👁️ Dilihat</option>
+              <option value="folder">📁 Folder</option>
             </select>
-          )}
-
-          {/* Sort Controls */}
-          <select
-            value={sortBy}
-            onChange={(e) => {
-              const newSort = e.target.value;
-              setSortBy(newSort);
-              try {
-                localStorage.setItem('notes_sort_by', newSort);
-              } catch (err) {
-                console.error('Failed to save sort preference:', err);
-              }
-            }}
-            className="flex-1 sm:flex-initial px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer text-[11px] sm:text-xs transition-all hover:border-[var(--text-muted)] min-w-0"
-          >
-            <option value="newest">📅 Terbaru</option>
-            <option value="oldest">⏳ Terlama</option>
-            <option value="last-viewed">👁️ Dilihat</option>
-            <option value="folder">📁 Folder</option>
-          </select>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Grid: 2 columns on mobile, 3 on larger screens */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
         {sortedNotes.map((note) => {
           const thumbnail = note.note_media?.find((m) => m.order_index === 0)?.media_url;
+          const isSelected = selectedIds.includes(note.id);
           
           // Format date helper: HH:MM, DD Month YYYY
           const formatNoteDate = (dateStr: string) => {
@@ -166,8 +289,21 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
             <Link
               key={note.id}
               href={`/dashboard/note/${note.id}`}
-              className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl sm:rounded-2xl overflow-hidden hover:border-[var(--text-muted)] hover:shadow-md transition-all flex flex-col min-w-0"
+              onClick={(e) => handleCardClick(e, note.id)}
+              className={`group relative bg-[var(--surface)] border rounded-xl sm:rounded-2xl overflow-hidden hover:border-[var(--text-muted)] hover:shadow-md transition-all flex flex-col min-w-0 ${
+                isSelected ? 'border-[var(--text-secondary)] ring-2 ring-[var(--accent)]/15' : 'border-[var(--border)]'
+              }`}
             >
+              {isSelectMode && (
+                <div className="absolute top-2.5 right-2.5 z-20">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    className="w-4 h-4 rounded border-[var(--border)] bg-[var(--surface)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                  />
+                </div>
+              )}
               {thumbnail && (
                 <div className="h-24 sm:h-36 bg-[var(--surface-2)] overflow-hidden">
                   <img

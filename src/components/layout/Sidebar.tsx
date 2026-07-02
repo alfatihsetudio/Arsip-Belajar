@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   {
     group: 'Learn',
     items: [
+      { href: '/dashboard/ai', icon: ChatIcon, label: 'Tanya AI' },
       { href: '/dashboard/exams', icon: ExamIcon, label: 'Exams' },
     ],
   },
@@ -312,20 +313,20 @@ export default function Sidebar({ user }: { user: User }) {
         </div>
       )}
 
-      {/* Floating mobile footer (iOS Glassmorphism style) */}
-      <div className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-40 glass-effect w-[92vw] max-w-xs rounded-2xl py-2.5 px-3 flex items-center justify-between shadow-xl">
+      {/* Floating mobile footer (iOS Glassmorphism style - Sleek Micro Dock) */}
+      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 glass-effect w-[90vw] max-w-[240px] rounded-2xl py-1.5 px-2 flex items-center justify-between shadow-xl">
         {/* Exam Tab */}
         <Link 
           href="/dashboard/exams" 
-          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
+          className="flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 11l3 3L22 4" />
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
           </svg>
-          <span className="text-[10px] font-semibold">Ujian</span>
+          <span className="text-[9px] font-semibold">Ujian</span>
         </Link>
-
+ 
         {/* Add Tab (Flat Center Button) */}
         <Link 
           href="#"
@@ -337,26 +338,26 @@ export default function Sidebar({ user }: { user: User }) {
               window.dispatchEvent(new CustomEvent('open-create-note-modal'));
             }
           }}
-          className="flex flex-col items-center justify-center gap-1 active:scale-95 flex-1 text-center transition-all duration-150"
+          className="flex flex-col items-center justify-center gap-0.5 active:scale-95 flex-1 text-center transition-all duration-150"
         >
-          <div className="w-10 h-10 bg-[var(--accent)] text-[var(--accent-fg)] rounded-full flex items-center justify-center shadow-md hover:opacity-90 transition-all">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-8 h-8 bg-[var(--accent)] text-[var(--accent-fg)] rounded-full flex items-center justify-center shadow-md hover:opacity-90 transition-all">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </div>
-          <span className="text-[10px] font-bold text-[var(--text-primary)]">Tambah</span>
+          <span className="text-[9px] font-bold text-[var(--text-primary)]">Tambah</span>
         </Link>
-
+ 
         {/* AI Tab */}
         <Link 
-          href="/dashboard/upload" 
-          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
+          href="/dashboard/ai" 
+          className="flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          <span className="text-[10px] font-semibold">AI</span>
+          <span className="text-[9px] font-semibold">AI</span>
         </Link>
       </div>
 
@@ -651,3 +652,4 @@ function ExamIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fil
 function StarIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>; }
 function SettingsIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>; }
 function LogoutIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>; }
+function ChatIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>; }

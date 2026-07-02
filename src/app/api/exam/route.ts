@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { noteId, noteIds, count = 5 } = await req.json();
+    const { noteId, noteIds, count = 5, difficulty = 'sedang' } = await req.json();
 
     let combinedNotesText = '';
     
@@ -53,14 +53,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Either noteId or noteIds is required' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-flash-lite-latest',
+      generationConfig: {
+        responseMimeType: 'application/json',
+      }
+    });
+
+    let diffText = 'medium (requires clear understanding)';
+    if (difficulty === 'mudah') {
+      diffText = 'easy (basic facts, simple definitions, and direct recall)';
+    } else if (difficulty === 'sulit') {
+      diffText = 'hard (advanced analysis, synthesis, critical reasoning, and deep understanding)';
+    }
 
     const prompt = `You are an exam question generator. Based on the following study note(s), generate exactly ${count} multiple-choice questions to test understanding of the material.
+    
+The difficulty level of the questions must be: ${diffText}.
 
 STUDY MATERIAL:
 ${combinedNotesText}
 
-OUTPUT FORMAT (strict JSON only, no markdown, no explanation):
+OUTPUT FORMAT (strict JSON only, no markdown wrappers, no explanation):
 {
   "questions": [
     {
@@ -74,16 +88,23 @@ OUTPUT FORMAT (strict JSON only, no markdown, no explanation):
 Rules:
 - Each question must have exactly 4 options labeled A, B, C, D
 - The "answer" field must be one of the 4 options (exact match)
-- Questions should test factual recall and understanding
-- Output ONLY the JSON, nothing else`;
+- Questions should test factual recall and understanding matching the requested difficulty
+- If any question or option has quotes inside, escape them properly.
+- Output ONLY the raw JSON string matching the output format. Do not surround with markdown backticks.`;
 
     const result = await model.generateContent(prompt);
-    const rawText = result.response.text();
+    const rawText = result.response.text().trim();
 
+    // Clean up any stray markdown tick marks if the model generated them despite instructions
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Invalid AI response format');
-    
-    const parsed = JSON.parse(jsonMatch[0]);
+    const jsonToParse = jsonMatch ? jsonMatch[0] : rawText;
+
+    // Helper to sanitize common JSON errors like unescaped control characters or trailing commas
+    const sanitizedJson = jsonToParse
+      .replace(/,(\s*[\]\}])/g, '$1') // Remove trailing commas
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Remove control characters
+
+    const parsed = JSON.parse(sanitizedJson);
     if (!parsed.questions || !Array.isArray(parsed.questions)) throw new Error('Invalid questions format');
 
     return NextResponse.json({ questions: parsed.questions });

@@ -7,9 +7,10 @@ import { Flashcard } from '@/lib/utils/flashcardHelper';
 interface FlashcardsSectionProps {
   noteId: string;
   initialFlashcards: Flashcard[];
+  isGuest?: boolean;
 }
 
-export default function FlashcardsSection({ noteId, initialFlashcards }: FlashcardsSectionProps) {
+export default function FlashcardsSection({ noteId, initialFlashcards, isGuest = false }: FlashcardsSectionProps) {
   const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -18,6 +19,10 @@ export default function FlashcardsSection({ noteId, initialFlashcards }: Flashca
   const router = useRouter();
 
   const handleGenerate = async () => {
+    if (isGuest) {
+      window.location.href = '/';
+      return;
+    }
     setGenerating(true);
     setError(null);
     try {
@@ -39,6 +44,10 @@ export default function FlashcardsSection({ noteId, initialFlashcards }: Flashca
   };
 
   const handleNext = () => {
+    if (isGuest) {
+      window.location.href = '/';
+      return;
+    }
     if (currentIndex < flashcards.length - 1) {
       setIsFlipped(false);
       setTimeout(() => {
@@ -48,12 +57,24 @@ export default function FlashcardsSection({ noteId, initialFlashcards }: Flashca
   };
 
   const handlePrev = () => {
+    if (isGuest) {
+      window.location.href = '/';
+      return;
+    }
     if (currentIndex > 0) {
       setIsFlipped(false);
       setTimeout(() => {
         setCurrentIndex(prev => prev - 1);
       }, 150);
     }
+  };
+
+  const handleCardClick = () => {
+    if (isGuest) {
+      window.location.href = '/';
+      return;
+    }
+    setIsFlipped(!isFlipped);
   };
 
   return (
@@ -111,7 +132,7 @@ export default function FlashcardsSection({ noteId, initialFlashcards }: Flashca
           {/* Card Container (3D Flip Deck) */}
           <div 
             className="w-full aspect-[1.6/1] cursor-pointer"
-            onClick={() => setIsFlipped(!isFlipped)}
+            onClick={handleCardClick}
             style={{ perspective: '1000px' }}
           >
             <div 

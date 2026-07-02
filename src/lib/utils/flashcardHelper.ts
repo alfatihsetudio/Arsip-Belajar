@@ -10,22 +10,24 @@ export interface MindmapNode {
 
 const FC_DELIMITER = '---FLASHCARDS---';
 const MM_DELIMITER = '---MINDMAP---';
+const SM_DELIMITER = '---SUMMARY---';
 
 export function parseNoteContent(fullText: string): { 
   textContent: string; 
   flashcards: Flashcard[];
   mindmap: MindmapNode | null;
+  summary: string;
 } {
   if (!fullText) {
-    return { textContent: '', flashcards: [], mindmap: null };
+    return { textContent: '', flashcards: [], mindmap: null, summary: '' };
   }
 
   // Extract mindmap block
-  let textAndFc = fullText;
+  let textAndFcAndSm = fullText;
   let mindmap: MindmapNode | null = null;
   const mmParts = fullText.split(MM_DELIMITER);
   if (mmParts.length >= 2) {
-    textAndFc = mmParts[0];
+    textAndFcAndSm = mmParts[0];
     try {
       mindmap = JSON.parse(mmParts[1].trim());
     } catch (e) {
@@ -34,10 +36,10 @@ export function parseNoteContent(fullText: string): {
   }
 
   // Extract flashcards block
-  let textContent = textAndFc;
+  let textAndSm = textAndFcAndSm;
   let flashcards: Flashcard[] = [];
-  const fcParts = textAndFc.split(FC_DELIMITER);
-  textContent = fcParts[0].trim();
+  const fcParts = textAndFcAndSm.split(FC_DELIMITER);
+  textAndSm = fcParts[0].trim();
   if (fcParts.length >= 2) {
     try {
       flashcards = JSON.parse(fcParts[1].trim());
@@ -46,15 +48,28 @@ export function parseNoteContent(fullText: string): {
     }
   }
 
-  return { textContent, flashcards, mindmap };
+  // Extract summary block
+  let textContent = textAndSm;
+  let summary = '';
+  const smParts = textAndSm.split(SM_DELIMITER);
+  textContent = smParts[0].trim();
+  if (smParts.length >= 2) {
+    summary = smParts[1].trim();
+  }
+
+  return { textContent, flashcards, mindmap, summary };
 }
 
 export function serializeNoteContent(
   textContent: string, 
   flashcards: Flashcard[], 
-  mindmap: MindmapNode | null = null
+  mindmap: MindmapNode | null = null,
+  summary: string = ''
 ): string {
   let result = textContent.trim();
+  if (summary) {
+    result += `\n\n${SM_DELIMITER}\n${summary.trim()}`;
+  }
   if (flashcards && flashcards.length > 0) {
     result += `\n\n${FC_DELIMITER}\n${JSON.stringify(flashcards, null, 2)}`;
   }

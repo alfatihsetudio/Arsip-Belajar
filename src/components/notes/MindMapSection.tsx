@@ -7,9 +7,10 @@ import { MindmapNode } from '@/lib/utils/flashcardHelper';
 interface MindMapSectionProps {
   noteId: string;
   initialMindmap: MindmapNode | null;
+  isGuest?: boolean;
 }
 
-export default function MindMapSection({ noteId, initialMindmap }: MindMapSectionProps) {
+export default function MindMapSection({ noteId, initialMindmap, isGuest = false }: MindMapSectionProps) {
   const [mindmap, setMindmap] = useState<MindmapNode | null>(initialMindmap);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,6 +18,10 @@ export default function MindMapSection({ noteId, initialMindmap }: MindMapSectio
   const router = useRouter();
 
   const handleGenerate = async () => {
+    if (isGuest) {
+      window.location.href = '/';
+      return;
+    }
     setGenerating(true);
     setError(null);
     try {
@@ -37,6 +42,10 @@ export default function MindMapSection({ noteId, initialMindmap }: MindMapSectio
   };
 
   const toggleNode = (nodePath: string) => {
+    if (isGuest) {
+      window.location.href = '/';
+      return;
+    }
     setExpandedNodes(prev => ({
       ...prev,
       [nodePath]: !prev[nodePath]

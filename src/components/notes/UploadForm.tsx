@@ -125,44 +125,46 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
         <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
           Images <span className="text-[var(--text-muted)] font-normal">(upload in order, from first to last)</span>
         </label>
-        
-        <div
-          onDrop={handleDrop}
-          onDragOver={e => e.preventDefault()}
-          onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-[var(--border)] rounded-2xl p-8 text-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
-        >
-          <svg className="mx-auto text-[var(--text-muted)] mb-3" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <p className="text-sm font-medium text-[var(--text-secondary)]">Tap to select or drag images here</p>
-          <p className="text-xs text-[var(--text-muted)] mt-1">JPG, PNG, WEBP — Multiple files supported</p>
-        </div>
         <input type="file" accept="image/*" capture="environment" multiple ref={fileInputRef} onChange={e => e.target.files && addImages(e.target.files)} className="hidden" />
-      </div>
 
-      {/* Image Previews */}
-      {images.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-          {images.map((img, i) => (
-            <div key={img.id} className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-[var(--border)] group bg-[var(--surface-2)]">
-              <img src={img.preview} alt="" className="w-full h-full object-cover" />
-              <span className="absolute top-2 left-2 bg-black/60 text-white text-xs font-bold px-1.5 py-0.5 rounded-md">#{i + 1}</span>
-              <button
-                onClick={() => removeImage(img.id)}
-                className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-          ))}
+        {images.length === 0 ? (
           <div
+            onDrop={handleDrop}
+            onDragOver={e => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
-            className="aspect-[3/4] border-2 border-dashed border-[var(--border)] rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
+            className="border-2 border-dashed border-[var(--border)] rounded-2xl p-8 text-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors w-full"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)]"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span className="text-xs text-[var(--text-muted)] mt-1">Add more</span>
+            <svg className="mx-auto text-[var(--text-muted)] mb-3" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p className="text-sm font-medium text-[var(--text-secondary)]">Seret atau muat foto. Frame ini menyesuaikan ukuran foto Anda (Potret, Lanskap, Kotak)</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">JPG, PNG, WEBP — Multiple files supported</p>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col gap-6 mb-6 w-full">
+            {images.map((img, i) => (
+              <div key={img.id} className="relative w-full rounded-2xl overflow-hidden shadow-md bg-[var(--surface-2)] group">
+                <img src={img.preview} alt={`Preview ${i + 1}`} className="w-full h-auto block" />
+                <span className="absolute top-3 left-3 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-md backdrop-blur-sm z-10">#{i + 1}</span>
+                <button
+                  onClick={() => removeImage(img.id)}
+                  className="absolute top-3 right-3 bg-red-500/90 hover:bg-red-600 text-white p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10 backdrop-blur-sm"
+                  title="Hapus gambar"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            ))}
+            
+            {/* Add more button */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full border-2 border-dashed border-[var(--border)] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
+            >
+              <svg className="text-[var(--text-muted)] mb-2" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span className="text-sm text-[var(--text-secondary)] font-medium">Tambah Foto Lainnya</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Premium Audio Button (Locked) */}
       <div className="mb-6 p-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl">
