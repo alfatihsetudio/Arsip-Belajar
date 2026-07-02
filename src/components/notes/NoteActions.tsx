@@ -3,12 +3,23 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-
 import { showAlert, showConfirm } from '@/lib/utils/customDialog';
 
-export default function NoteActions({ noteId, noteTitle }: { noteId: string; noteTitle: string }) {
+import ShareModal from './ShareModal';
+
+export default function NoteActions({ 
+  noteId, 
+  noteTitle,
+  initialVisibility = 'private',
+  initialAllowedEmails = []
+}: { 
+  noteId: string; 
+  noteTitle: string;
+  initialVisibility?: 'private' | 'restricted' | 'public';
+  initialAllowedEmails?: string[];
+}) {
   const [deleting, setDeleting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -51,28 +62,18 @@ export default function NoteActions({ noteId, noteTitle }: { noteId: string; not
   };
 
   const handleShare = () => {
-    const publicUrl = `${window.location.origin}/note/${noteId}`;
-    navigator.clipboard.writeText(publicUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setIsShareModalOpen(true);
   };
 
   return (
+    <>
     <div className="flex items-center gap-1 relative z-10">
       <button
         onClick={handleShare}
-        className={`p-2 rounded-xl transition-all active:scale-95 border ${
-          copied 
-            ? 'bg-green-50 text-green-600 border-green-200' 
-            : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]'
-        }`}
-        title={copied ? "Link disalin!" : "Bagikan catatan (Salin link)"}
+        className={`p-2 rounded-xl transition-all active:scale-95 border text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]`}
+        title="Bagikan catatan"
       >
-        {copied ? (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        ) : (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-        )}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
       </button>
       <button
         onClick={handleDelete}
@@ -86,6 +87,15 @@ export default function NoteActions({ noteId, noteTitle }: { noteId: string; not
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
         )}
       </button>
-    </div>
+      </div>
+      
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        noteId={noteId}
+        initialVisibility={initialVisibility}
+        initialAllowedEmails={initialAllowedEmails}
+      />
+    </>
   );
 }

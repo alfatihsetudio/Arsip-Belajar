@@ -75,7 +75,12 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
         <div className="flex-shrink-0">
-          <NoteActions noteId={id} noteTitle={note.title} />
+          <NoteActions 
+            noteId={id} 
+            noteTitle={note.title}
+            initialVisibility={note.visibility}
+            initialAllowedEmails={note.allowed_emails}
+          />
         </div>
       </div>
 

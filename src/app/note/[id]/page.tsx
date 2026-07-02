@@ -30,6 +30,42 @@ export default async function PublicNoteDetailPage({
   const { data: { user } } = await supabase.auth.getUser();
   const isGuest = !user;
 
+  // Access Control Logic
+  const visibility = note.visibility || 'private';
+  const allowedEmails = note.allowed_emails || [];
+  const isOwner = user?.id === note.user_id;
+
+  if (!isOwner) {
+    if (visibility === 'private') {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
+          <div>
+            <h1 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">Akses Ditolak</h1>
+            <p className="text-[var(--text-secondary)] mb-4">Catatan ini bersifat privat dan hanya dapat dilihat oleh pemiliknya.</p>
+            <Link href="/" className="text-[var(--accent)] font-semibold hover:underline">Kembali ke Beranda</Link>
+          </div>
+        </div>
+      );
+    }
+    if (visibility === 'restricted') {
+      if (isGuest || !allowedEmails.includes(user.email || '')) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
+            <div>
+              <h1 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">Akses Terbatas</h1>
+              <p className="text-[var(--text-secondary)] mb-4">Anda tidak memiliki izin untuk melihat catatan ini.</p>
+              {isGuest ? (
+                <Link href="/" className="text-[var(--accent)] font-semibold hover:underline">Silakan Login Terlebih Dahulu</Link>
+              ) : (
+                <Link href="/dashboard" className="text-[var(--accent)] font-semibold hover:underline">Kembali ke Dashboard</Link>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+  }
+
   // Media parsing with fallback for legacy image_url notes
   const sortedMedia = note.note_media && note.note_media.length > 0
     ? [...note.note_media].sort((a: any, b: any) => a.order_index - b.order_index)
