@@ -15,9 +15,10 @@ import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site';
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string[] }>;
 }): Promise<Metadata> {
-  const { id } = await params;
+  const { id: idSegments } = await params;
+  const id = idSegments.join('-');
   const supabase = await createClient();
 
   const { data: note } = await supabase
@@ -47,9 +48,11 @@ export async function generateMetadata({
 export default async function PublicNoteDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string[] }>;
 }) {
-  const { id } = await params;
+  const { id: idSegments } = await params;
+  // Catch-all: join segments in case URL was split by WhatsApp or other messengers
+  const id = idSegments.join('-');
   const supabase = await createClient();
 
   const { data: note, error } = await supabase

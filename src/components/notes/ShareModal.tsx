@@ -86,7 +86,7 @@ export default function ShareModal({
   };
 
   const handleCopyLink = () => {
-    const publicUrl = `${window.location.origin}/${itemType}/${itemId}`;
+    const publicUrl = `${window.location.origin}/${itemType}/${encodeURIComponent(itemId)}`;
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

@@ -11,9 +11,10 @@ export const runtime = 'nodejs';
 export default async function Image({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string[] }>;
 }) {
-  const { id } = await params;
+  const { id: idSegments } = await params;
+  const id = idSegments.join('-');
   const supabase = await createClient();
   const imageSrc = await getSharePreviewImageSrc();
 
