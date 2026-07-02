@@ -18,6 +18,7 @@ export default async function FoldersPage({
       id, name, created_at,
       notes:notes(id)
     `)
+    .eq('user_id', user.id)
     .order('name');
 
   if (q?.trim()) {

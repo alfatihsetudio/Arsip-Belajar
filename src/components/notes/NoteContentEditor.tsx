@@ -37,11 +37,15 @@ export default function NoteContentEditor({ noteId, initialText }: NoteContentEd
   const handleSaveEdit = async () => {
     setIsSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+      
       const serialized = serializeNoteContent(editText, savedFlashcards, null, summary);
       const { error } = await supabase
         .from('notes')
         .update({ transcribed_text: serialized })
-        .eq('id', noteId);
+        .eq('id', noteId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
       
@@ -105,11 +109,15 @@ export default function NoteContentEditor({ noteId, initialText }: NoteContentEd
     if (!confirmDelete) return;
     
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+      
       const serialized = serializeNoteContent(text, savedFlashcards, null, null);
       const { error } = await supabase
         .from('notes')
         .update({ transcribed_text: serialized })
-        .eq('id', noteId);
+        .eq('id', noteId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
       

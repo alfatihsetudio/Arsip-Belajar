@@ -9,6 +9,11 @@ export default async function DashboardPage({
 }) {
   const { q, folder, tag } = await searchParams;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    return null; // Next middleware should handle redirect
+  }
 
   let query = supabase
     .from('notes')
@@ -17,6 +22,7 @@ export default async function DashboardPage({
       folder:folders(id, name),
       note_media(media_url, order_index)
     `)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
   if (q) {
@@ -24,7 +30,7 @@ export default async function DashboardPage({
   }
 
   const { data: notes } = await query;
-  const { data: folders } = await supabase.from('folders').select('id, name').order('name');
+  const { data: folders } = await supabase.from('folders').select('id, name').eq('user_id', user.id).order('name');
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 animate-fadeIn">

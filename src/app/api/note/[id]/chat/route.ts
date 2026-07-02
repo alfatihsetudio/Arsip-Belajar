@@ -29,6 +29,7 @@ export async function POST(
       .from('notes')
       .select('transcribed_text')
       .eq('id', id)
+      .eq('user_id', user.id)
       .single();
 
     if (fetchError || !note) {

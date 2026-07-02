@@ -18,10 +18,20 @@ export default function TagChip({ tag }: { tag: any }) {
     if (!confirm(`Hapus tag "#${tag.name}"?`)) return;
     setDeleting(true);
 
-    // Delete tag associations first
-    await supabase.from('note_tags').delete().eq('tag_id', tag.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-    const { error } = await supabase.from('tags').delete().eq('id', tag.id);
+    // Delete tag associations first. note_tags doesn't have user_id, but tag does.
+    // However, it's safer to only delete the tag if we own it.
+    const { data: tagCheck } = await supabase.from('tags').select('id').eq('id', tag.id).eq('user_id', user.id).single();
+    if (!tagCheck) {
+      alert('Akses ditolak');
+      setDeleting(false);
+      return;
+    }
+    
+    await supabase.from('note_tags').delete().eq('tag_id', tag.id);
+    const { error } = await supabase.from('tags').delete().eq('id', tag.id).eq('user_id', user.id);
     if (!error) {
       router.refresh();
     } else {
@@ -38,7 +48,13 @@ export default function TagChip({ tag }: { tag: any }) {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('tags').update({ name: trimmed }).eq('id', tag.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      setEditing(false);
+      return;
+    }
+    const { error } = await supabase.from('tags').update({ name: trimmed }).eq('id', tag.id).eq('user_id', user.id);
     if (!error) {
       router.refresh();
     } else {

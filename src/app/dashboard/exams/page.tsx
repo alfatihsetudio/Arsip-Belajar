@@ -10,6 +10,7 @@ export default async function ExamsDashboardPage() {
   const { data: notes } = await supabase
     .from('notes')
     .select('id, title, created_at')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
   return (

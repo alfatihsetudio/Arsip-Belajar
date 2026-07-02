@@ -21,6 +21,12 @@ export default function NoteActions({ noteId, noteTitle }: { noteId: string; not
     try {
       setDeleting(true);
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setDeleting(false);
+        return;
+      }
+
       // Delete child rows first to avoid foreign key violations
       const { error: mediaErr } = await supabase.from('note_media').delete().eq('note_id', noteId);
       if (mediaErr) console.error('Media delete error:', mediaErr);
@@ -28,7 +34,7 @@ export default function NoteActions({ noteId, noteTitle }: { noteId: string; not
       const { error: tagsErr } = await supabase.from('note_tags').delete().eq('note_id', noteId);
       if (tagsErr) console.error('Tags delete error:', tagsErr);
 
-      const { error } = await supabase.from('notes').delete().eq('id', noteId);
+      const { error } = await supabase.from('notes').delete().eq('id', noteId).eq('user_id', user.id);
       if (error) {
         console.error('Notes delete error:', error);
         await showAlert('Gagal menghapus catatan: ' + (error.message || JSON.stringify(error)) + '\n\nPastikan Anda sudah mengaktifkan RLS Policy (Enable delete) untuk tabel notes dan note_media di Supabase.');

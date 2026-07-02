@@ -19,7 +19,16 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Fetch note media urls
+    // 1. Verify note ownership
+    const { data: noteOwnerCheck } = await supabase
+      .from('notes')
+      .select('id')
+      .eq('id', noteId)
+      .eq('user_id', user.id)
+      .single();
+    if (!noteOwnerCheck) {
+      return NextResponse.json({ error: 'Catatan tidak ditemukan' }, { status: 404 });
+    }
     const { data: media, error: mediaError } = await supabase
       .from('note_media')
       .select('media_url, order_index, media_type')

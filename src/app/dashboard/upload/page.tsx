@@ -15,6 +15,7 @@ export default async function UploadDashboardPage({
   const { data: folders } = await supabase
     .from('folders')
     .select('id, name')
+    .eq('user_id', user.id)
     .order('name');
 
   const { folder } = await searchParams;

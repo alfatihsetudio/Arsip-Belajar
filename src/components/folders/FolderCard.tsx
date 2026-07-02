@@ -35,10 +35,13 @@ export default function FolderCard({ folder }: { folder: any }) {
     if (!confirm(`Hapus folder "${displayName}"? Catatan di dalamnya tidak akan terhapus.`)) return;
     setDeleting(true);
 
-    // Unlink notes inside this folder first
-    await supabase.from('notes').update({ folder_id: null }).eq('folder_id', folder.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-    const { error } = await supabase.from('folders').delete().eq('id', folder.id);
+    // Unlink notes inside this folder first
+    await supabase.from('notes').update({ folder_id: null }).eq('folder_id', folder.id).eq('user_id', user.id);
+
+    const { error } = await supabase.from('folders').delete().eq('id', folder.id).eq('user_id', user.id);
     if (!error) {
       router.refresh();
     } else {
@@ -63,10 +66,18 @@ export default function FolderCard({ folder }: { folder: any }) {
       emoji: emoji
     });
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      setEditing(false);
+      return;
+    }
+
     const { error } = await supabase
       .from('folders')
       .update({ name: updatedNameJson })
-      .eq('id', folder.id);
+      .eq('id', folder.id)
+      .eq('user_id', user.id);
     if (!error) {
       router.refresh();
     } else {

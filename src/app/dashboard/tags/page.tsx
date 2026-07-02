@@ -13,6 +13,7 @@ export default async function TagsPage() {
       id, name, created_at,
       note_tags(note_id)
     `)
+    .eq('user_id', user.id)
     .order('name');
 
   // Server Action to create tag
