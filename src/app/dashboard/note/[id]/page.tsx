@@ -19,15 +19,22 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
 
   const { data: note, error } = await supabase
     .from('notes')
-    .select(`*, folder:folders(id, name), note_media(id, media_url, order_index, media_type)`)
+    .select(`*, folder:folders(id, name)`)
     .eq('id', id)
     .eq('user_id', user.id)
     .single();
 
   if (error || !note) notFound();
 
-  const sortedMedia = note.note_media && note.note_media.length > 0
-    ? [...note.note_media].sort((a: any, b: any) => a.order_index - b.order_index)
+  // Query note_media separately to avoid RLS issues with PostgREST embedded joins
+  const { data: noteMedia } = await supabase
+    .from('note_media')
+    .select('id, media_url, order_index, media_type')
+    .eq('note_id', id)
+    .order('order_index', { ascending: true });
+
+  const sortedMedia = noteMedia && noteMedia.length > 0
+    ? noteMedia
     : note.image_url 
       ? [{ id: 'default', media_url: note.image_url, order_index: 0 }] 
       : [];
