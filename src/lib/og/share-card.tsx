@@ -1,7 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 type ShareCardProps = {
   title: string;
   subtitle: string;
   kindLabel: string;
+  imageSrc?: string | null;
+  brandLogoSrc?: string | null;
 };
 
 export const shareCardSize = {
@@ -9,7 +12,9 @@ export const shareCardSize = {
   height: 630,
 } as const;
 
-export function ShareCard({ title, subtitle, kindLabel }: ShareCardProps) {
+export function ShareCard({ title, subtitle, kindLabel, imageSrc, brandLogoSrc }: ShareCardProps) {
+  const resolvedBrandLogoSrc = brandLogoSrc ?? imageSrc;
+
   return (
     <div
       style={{
@@ -53,25 +58,26 @@ export function ShareCard({ title, subtitle, kindLabel }: ShareCardProps) {
               width: '72px',
               height: '72px',
               borderRadius: '20px',
-              background: 'linear-gradient(135deg, #2563eb, #22c55e)',
+              overflow: 'hidden',
+              background: 'rgba(255,255,255,0.92)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 18px 40px rgba(37,99,235,0.35)',
+              boxShadow: '0 18px 40px rgba(37,99,235,0.18)',
               flexShrink: 0,
             }}
           >
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '10px',
-                border: '3px solid rgba(255,255,255,0.95)',
-                borderTop: 'none',
-                borderLeftWidth: '4px',
-                transform: 'skewY(-4deg)',
-              }}
-            />
+            {resolvedBrandLogoSrc ? (
+              <img
+                src={resolvedBrandLogoSrc}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            ) : null}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -84,32 +90,99 @@ export function ShareCard({ title, subtitle, kindLabel }: ShareCardProps) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', gap: '28px', alignItems: 'stretch', flex: 1 }}>
           <div
             style={{
-              fontSize: '56px',
-              fontWeight: 900,
-              lineHeight: 1.05,
-              letterSpacing: '-0.05em',
-              maxWidth: '960px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              gap: '16px',
+              width: imageSrc ? '58%' : '100%',
+              paddingRight: imageSrc ? '6px' : '0',
             }}
           >
-            {title}
+            <div
+              style={{
+                fontSize: '56px',
+                fontWeight: 900,
+                lineHeight: 1.05,
+                letterSpacing: '-0.05em',
+                maxWidth: '960px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {title}
+            </div>
+            <div
+              style={{
+                fontSize: '24px',
+                color: 'rgba(226,232,240,0.78)',
+                maxWidth: '920px',
+                lineHeight: 1.35,
+              }}
+            >
+              {subtitle}
+            </div>
           </div>
+
           <div
             style={{
-              fontSize: '24px',
-              color: 'rgba(226,232,240,0.78)',
-              maxWidth: '920px',
-              lineHeight: 1.35,
+              display: 'flex',
+              width: '42%',
+              minWidth: '360px',
+              borderRadius: '32px',
+              overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(15, 23, 42, 0.85)',
+              boxShadow: '0 24px 80px rgba(15,23,42,0.45)',
+              position: 'relative',
             }}
-          >
-            {subtitle}
+            >
+              {imageSrc ? (
+                <img
+                  src={imageSrc}
+                  alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  }}
+                />
+              ) : null}
+            {!imageSrc ? (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                padding: '24px',
+                textAlign: 'center',
+                background:
+                  'linear-gradient(135deg, rgba(37,99,235,0.26), rgba(34,197,94,0.18))',
+              }}
+              >
+                <div style={{ fontSize: '22px', fontWeight: 800 }}>Foto preview</div>
+                <div style={{ fontSize: '18px', color: 'rgba(226,232,240,0.82)', lineHeight: 1.4 }}>
+                  Taruh logo di <span style={{ fontWeight: 700 }}>/public/logo.jpg</span>
+                </div>
+              </div>
+            ) : null}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background:
+                  'linear-gradient(180deg, rgba(15,23,42,0.08) 0%, rgba(15,23,42,0.26) 100%)',
+              }}
+            />
           </div>
         </div>
       </div>

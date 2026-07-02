@@ -124,7 +124,8 @@ CRITICAL RULES:
         user_id: user.id, 
         title: title.trim(), 
         transcribed_text: transcribedText,
-        folder_id: folderId
+        folder_id: folderId,
+        image_url: uploadedUrls[0]?.url || null
       })
       .select()
       .single();
@@ -150,7 +151,7 @@ CRITICAL RULES:
         const cleanName = tagName.trim().toLowerCase();
         if (!cleanName) continue;
         try {
-          let { data: existingTag } = await supabase
+          const { data: existingTag } = await supabase
             .from('tags')
             .select('id')
             .eq('name', cleanName)

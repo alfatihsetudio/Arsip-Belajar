@@ -9,6 +9,7 @@ import MindMapSection from '@/components/notes/MindMapSection';
 import NoteChatAssistant from '@/components/notes/NoteChatAssistant';
 import NoteExamSection from '@/components/notes/NoteExamSection';
 import NoteLayoutWrapper from '@/components/notes/NoteLayoutWrapper';
+import DashboardNoteMediaPanel from '@/components/notes/DashboardNoteMediaPanel';
 import { parseNoteContent } from '@/lib/utils/flashcardHelper';
 
 export default async function NoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,25 +20,18 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
 
   const { data: note, error } = await supabase
     .from('notes')
-    .select(`*, folder:folders(id, name)`)
+    .select(`
+      *,
+      folder:folders(id, name),
+      note_media(id, media_url, order_index, media_type)
+    `)
     .eq('id', id)
     .eq('user_id', user.id)
     .single();
 
   if (error || !note) notFound();
 
-  // Query note_media separately to avoid RLS issues with PostgREST embedded joins
-  const { data: noteMedia } = await supabase
-    .from('note_media')
-    .select('id, media_url, order_index, media_type')
-    .eq('note_id', id)
-    .order('order_index', { ascending: true });
-
-  const sortedMedia = noteMedia && noteMedia.length > 0
-    ? noteMedia
-    : note.image_url 
-      ? [{ id: 'default', media_url: note.image_url, order_index: 0 }] 
-      : [];
+  const mediaToShow = note.note_media ?? [];
   const { flashcards, mindmap } = parseNoteContent(note.transcribed_text);
 
   return (
@@ -125,17 +119,22 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {/* Split-Screen Content with Minimize & Lightbox Zoom/Pan features */}
-      <NoteLayoutWrapper 
-        sortedMedia={sortedMedia}
-        headerActions={
-          <NoteActions 
-            noteId={id} 
+      <DashboardNoteMediaPanel
+        media={mediaToShow}
+        actions={
+          <NoteActions
+            noteId={id}
             noteTitle={note.title}
             initialVisibility={note.visibility}
             initialAllowedEmails={note.allowed_emails}
           />
         }
+      />
+
+      {/* Split-Screen Content with Minimize & Lightbox Zoom/Pan features */}
+      <NoteLayoutWrapper
+        sortedMedia={[]}
+        showMediaPanel={false}
       >
         <NoteContentEditor noteId={id} noteTitle={note.title} initialText={note.transcribed_text} />
         <div id="flashcards">

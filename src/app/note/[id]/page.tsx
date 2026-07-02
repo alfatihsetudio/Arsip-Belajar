@@ -54,7 +54,11 @@ export default async function PublicNoteDetailPage({
 
   const { data: note, error } = await supabase
     .from('notes')
-    .select(`*, folders(id, visibility, allowed_emails)`)
+    .select(`
+      *,
+      folders(id, visibility, allowed_emails),
+      note_media(id, media_url, order_index, media_type)
+    `)
     .eq('id', id)
     .single();
 
@@ -130,16 +134,8 @@ export default async function PublicNoteDetailPage({
       });
   }
 
-  // Query note_media separately to avoid RLS issues with PostgREST embedded joins
-  const { data: noteMedia } = await supabase
-    .from('note_media')
-    .select('id, media_url, order_index, media_type')
-    .eq('note_id', id)
-    .order('order_index', { ascending: true });
-
-  // Media parsing with fallback for legacy image_url notes
-  const sortedMedia = noteMedia && noteMedia.length > 0
-    ? noteMedia
+  const sortedMedia = note.note_media && note.note_media.length > 0
+    ? note.note_media
     : note.image_url 
       ? [{ id: 'default', media_url: note.image_url, order_index: 0 }] 
       : [];

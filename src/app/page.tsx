@@ -1,4 +1,5 @@
 import LoginButton from '@/components/auth/LoginButton';
+import Image from 'next/image';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
@@ -15,11 +16,8 @@ export default function LandingPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 bg-[var(--accent)] rounded-2xl flex items-center justify-center shadow-lg">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
+          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white shadow-lg relative">
+            <Image src="/logo.jpg" alt="Arsip Belajar" fill sizes="64px" className="object-cover" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Arsip Belajar</h1>

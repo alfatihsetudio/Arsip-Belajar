@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   keywords: ["study", "notes", "OCR", "AI", "archive", "exam"],
   icons: {
-    icon: "/logo.svg",
-    apple: "/logo.svg",
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
   },
   openGraph: {
     type: "website",

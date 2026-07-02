@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
@@ -224,10 +225,8 @@ export default function Sidebar({ user }: { user: User }) {
       {/* Logo */}
       <div className="px-4 py-3.5 border-b border-[var(--border)]">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-[var(--accent)] rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
+          <div className="w-7 h-7 rounded-lg overflow-hidden bg-white flex-shrink-0 relative">
+            <Image src="/logo.jpg" alt="Arsip Belajar" fill sizes="28px" className="object-cover" />
           </div>
           <span className="font-bold text-[var(--text-primary)] text-sm sm:text-base">Arsip Belajar</span>
         </Link>
@@ -289,10 +288,8 @@ export default function Sidebar({ user }: { user: User }) {
           
           {/* Logo next to it */}
           <Link href="/dashboard" className="flex items-center gap-1.5">
-            <div className="w-6 h-6 bg-[var(--accent)] rounded-md flex items-center justify-center">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              </svg>
+            <div className="w-6 h-6 rounded-md overflow-hidden bg-white relative">
+              <Image src="/logo.jpg" alt="Arsip Belajar" fill sizes="24px" className="object-cover" />
             </div>
             <span className="font-bold text-xs">Arsip Belajar</span>
           </Link>
