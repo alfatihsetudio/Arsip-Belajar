@@ -120,7 +120,15 @@ export default function AIChatPage() {
         .eq('user_id', user.id)
         .order('name')
     ]);
-    if (notesData) setNotes(notesData as Note[]);
+    if (notesData) {
+      setNotes(notesData.map((n: any) => ({
+        id: n.id,
+        title: n.title,
+        transcribed_text: n.transcribed_text,
+        folder_id: n.folder_id,
+        folder: Array.isArray(n.folder) ? n.folder[0] : n.folder
+      })) as Note[]);
+    }
     // Smart-parse: folder name might be a JSON string (legacy) or a plain string (new)
     if (foldersData) {
       setFolders(foldersData.map((f: any) => {
