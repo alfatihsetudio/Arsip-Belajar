@@ -190,7 +190,7 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
     });
 
     setSortedNotes(filtered);
-  }, [sortBy, selectedFolder, notesState, lastViewed]);
+  }, [sortBy, selectedFolder, filterDate, notesState, lastViewed]);
 
 
 

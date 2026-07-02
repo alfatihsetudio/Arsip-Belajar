@@ -250,7 +250,7 @@ export default function NoteLayoutWrapper({
             {textEditor}
           </div>
 
-          <div className="w-full md:w-2/5 flex flex-col gap-4 min-h-0">
+          <div className="w-full md:w-2/5 flex flex-col gap-4 min-h-0 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
             {aiFeatures}
           </div>
         </div>

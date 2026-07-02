@@ -83,12 +83,12 @@ export default function DatePicker({ value, onChange, onClear, placeholder = 'Ta
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 animate-fadeIn">
           <div 
             className="absolute inset-0" 
             onClick={() => setIsOpen(false)} 
           />
-          <div className="relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-4 w-full max-w-[280px] sm:max-w-xs animate-scaleIn select-none">
+          <div className="relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-4 w-full max-w-[280px] sm:max-w-xs animate-scaleIn select-none z-[10000]">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <button onClick={handlePrevMonth} type="button" className="p-1.5 hover:bg-[var(--surface-2)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">

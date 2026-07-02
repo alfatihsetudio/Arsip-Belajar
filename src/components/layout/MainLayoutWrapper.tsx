@@ -15,7 +15,7 @@ export default function MainLayoutWrapper({ children }: { children: React.ReactN
   }
 
   return (
-    <main className="flex-1 p-4 sm:p-6 pb-24 md:pb-6 overflow-x-hidden">
+    <main className="flex-1 p-4 sm:p-6 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-6 overflow-x-hidden">
       {children}
     </main>
   );

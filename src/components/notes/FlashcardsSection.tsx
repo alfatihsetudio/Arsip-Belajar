@@ -36,8 +36,8 @@ export default function FlashcardsSection({ noteId, initialFlashcards, isGuest =
       setCurrentIndex(0);
       setIsFlipped(false);
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal menghasilkan flashcard');
     } finally {
       setGenerating(false);
     }
@@ -92,7 +92,7 @@ export default function FlashcardsSection({ noteId, initialFlashcards, isGuest =
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="text-[10px] sm:text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+            className="text-[10px] sm:text-xs font-semibold bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border)] px-2 py-1 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
           >
             {generating ? 'Regenerating...' : 'Regenerate'}
           </button>
@@ -144,25 +144,25 @@ export default function FlashcardsSection({ noteId, initialFlashcards, isGuest =
             >
               {/* Card Front (Question) */}
               <div 
-                className="absolute inset-0 bg-white border border-[var(--border)] rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center backface-hidden"
+                className="absolute inset-0 bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center backface-hidden"
                 style={{ backfaceVisibility: 'hidden' }}
               >
-                <span className="absolute top-2.5 left-3.5 text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Pertanyaan</span>
-                <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-relaxed max-w-[90%]">{flashcards[currentIndex].q}</p>
-                <span className="absolute bottom-2.5 text-[9px] text-gray-400 font-medium">Ketuk untuk melihat jawaban</span>
+                <span className="absolute top-2.5 left-3.5 text-[9px] font-bold text-amber-700 dark:text-amber-200 bg-amber-100 dark:bg-amber-500/20 border border-amber-200 dark:border-amber-400/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Pertanyaan</span>
+                <p className="text-xs sm:text-sm font-semibold text-[var(--text-primary)] leading-relaxed max-w-[90%]">{flashcards[currentIndex].q}</p>
+                <span className="absolute bottom-2.5 text-[9px] text-[var(--text-muted)] font-medium">Ketuk untuk melihat jawaban</span>
               </div>
 
               {/* Card Back (Answer) */}
               <div 
-                className="absolute inset-0 bg-blue-50/30 border border-blue-100 rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center backface-hidden"
+                className="absolute inset-0 bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-400/20 rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center backface-hidden"
                 style={{ 
                   backfaceVisibility: 'hidden',
                   transform: 'rotateY(180deg)'
                 }}
               >
-                <span className="absolute top-2.5 left-3.5 text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Jawaban</span>
-                <p className="text-xs sm:text-sm font-medium text-blue-900 leading-relaxed max-w-[90%]">{flashcards[currentIndex].a}</p>
-                <span className="absolute bottom-2.5 text-[9px] text-blue-400 font-medium">Ketuk untuk membalik kembali</span>
+                <span className="absolute top-2.5 left-3.5 text-[9px] font-bold text-sky-700 dark:text-sky-200 bg-sky-100 dark:bg-sky-500/20 border border-sky-200 dark:border-sky-400/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Jawaban</span>
+                <p className="text-xs sm:text-sm font-medium text-sky-950 dark:text-sky-100 leading-relaxed max-w-[90%]">{flashcards[currentIndex].a}</p>
+                <span className="absolute bottom-2.5 text-[9px] text-sky-700/70 dark:text-sky-200/70 font-medium">Ketuk untuk membalik kembali</span>
               </div>
             </div>
           </div>
