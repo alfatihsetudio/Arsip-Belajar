@@ -98,13 +98,6 @@ export default function Sidebar({ user }: { user: User }) {
 
     setSaving(true);
 
-    const folderNameJson = JSON.stringify({
-      name: name.trim(),
-      description: description.trim(),
-      color: color,
-      emoji: emoji
-    });
-
     const { data: authData } = await supabase.auth.getUser();
     if (!authData.user) {
       setSaving(false);
@@ -112,7 +105,7 @@ export default function Sidebar({ user }: { user: User }) {
     }
 
     const { error } = await supabase.from('folders').insert({
-      name: folderNameJson,
+      name: JSON.stringify({ name: name.trim(), description: description.trim(), color, emoji }),
       user_id: authData.user.id
     });
 
@@ -320,52 +313,54 @@ export default function Sidebar({ user }: { user: User }) {
       )}
 
       {/* Floating mobile footer (iOS Glassmorphism style - Sleek Micro Dock) */}
-      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 glass-effect w-[90vw] max-w-[240px] rounded-2xl py-1.5 px-2 flex items-center justify-between shadow-xl">
-        {/* Exam Tab */}
-        <Link 
-          href="/dashboard/exams" 
-          className="flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-          </svg>
-          <span className="text-[9px] font-semibold">Ujian</span>
-        </Link>
- 
-        {/* Add Tab (Flat Center Button) */}
-        <Link 
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            if (pathname === '/dashboard/folders') {
-              window.dispatchEvent(new CustomEvent('open-create-folder-modal'));
-            } else {
-              window.dispatchEvent(new CustomEvent('open-create-note-modal'));
-            }
-          }}
-          className="flex flex-col items-center justify-center gap-0.5 active:scale-95 flex-1 text-center transition-all duration-150"
-        >
-          <div className="w-8 h-8 bg-[var(--accent)] text-[var(--accent-fg)] rounded-full flex items-center justify-center shadow-md hover:opacity-90 transition-all">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
+      {!pathname.startsWith('/dashboard/ai') && (
+        <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 glass-effect w-[90vw] max-w-[240px] rounded-2xl py-1.5 px-2 flex items-center justify-between shadow-xl">
+          {/* Exam Tab */}
+          <Link 
+            href="/dashboard/exams" 
+            className="flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 11l3 3L22 4" />
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
             </svg>
-          </div>
-          <span className="text-[9px] font-bold text-[var(--text-primary)]">Tambah</span>
-        </Link>
- 
-        {/* AI Tab */}
-        <Link 
-          href="/dashboard/ai" 
-          className="flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span className="text-[9px] font-semibold">AI</span>
-        </Link>
-      </div>
+            <span className="text-[9px] font-semibold">Ujian</span>
+          </Link>
+  
+          {/* Add Tab (Flat Center Button) */}
+          <Link 
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              if (pathname === '/dashboard/folders') {
+                window.dispatchEvent(new CustomEvent('open-create-folder-modal'));
+              } else {
+                window.dispatchEvent(new CustomEvent('open-create-note-modal'));
+              }
+            }}
+            className="flex flex-col items-center justify-center gap-0.5 active:scale-95 flex-1 text-center transition-all duration-150"
+          >
+            <div className="w-8 h-8 bg-[var(--accent)] text-[var(--accent-fg)] rounded-full flex items-center justify-center shadow-md hover:opacity-90 transition-all">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </div>
+            <span className="text-[9px] font-bold text-[var(--text-primary)]">Tambah</span>
+          </Link>
+  
+          {/* AI Tab */}
+          <Link 
+            href="/dashboard/ai" 
+            className="flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 active:bg-black/10 active:scale-95 flex-1 text-center transition-all duration-150"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="text-[9px] font-semibold">AI</span>
+          </Link>
+        </div>
+      )}
 
       {/* Create Folder Modal (Liquid Glass Style Card with Solid Theme Background) */}
       {showModal && (

@@ -33,7 +33,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
     <div className="h-full flex flex-col animate-fadeIn">
       <NoteViewTracker noteId={id} />
       {/* Breadcrumb Note Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <div className="mb-4">
         <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0 min-w-0">
           <Link href="/dashboard" className="hover:text-[var(--text-primary)] transition-colors flex-shrink-0">
             Arsip Belajar
@@ -77,14 +77,6 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
             📄 {note.title}
           </span>
         </div>
-        <div className="flex-shrink-0">
-          <NoteActions 
-            noteId={id} 
-            noteTitle={note.title}
-            initialVisibility={note.visibility}
-            initialAllowedEmails={note.allowed_emails}
-          />
-        </div>
       </div>
 
       {/* Quick Navigation Shortcuts */}
@@ -123,8 +115,18 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* Split-Screen Content with Minimize & Lightbox Zoom/Pan features */}
-      <NoteLayoutWrapper sortedMedia={sortedMedia}>
-        <NoteContentEditor noteId={id} initialText={note.transcribed_text} />
+      <NoteLayoutWrapper 
+        sortedMedia={sortedMedia}
+        headerActions={
+          <NoteActions 
+            noteId={id} 
+            noteTitle={note.title}
+            initialVisibility={note.visibility}
+            initialAllowedEmails={note.allowed_emails}
+          />
+        }
+      >
+        <NoteContentEditor noteId={id} noteTitle={note.title} initialText={note.transcribed_text} />
         <div id="flashcards">
           <FlashcardsSection noteId={id} initialFlashcards={flashcards} />
         </div>

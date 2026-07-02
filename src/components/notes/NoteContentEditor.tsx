@@ -9,10 +9,11 @@ import { showAlert, showConfirm } from '@/lib/utils/customDialog';
 
 interface NoteContentEditorProps {
   noteId: string;
+  noteTitle: string;
   initialText: string;
 }
 
-export default function NoteContentEditor({ noteId, initialText }: NoteContentEditorProps) {
+export default function NoteContentEditor({ noteId, noteTitle, initialText }: NoteContentEditorProps) {
   const { textContent, flashcards, summary: initialSummary } = parseNoteContent(initialText);
   const [text, setText] = useState(textContent);
   const [summary, setSummary] = useState(initialSummary);
@@ -22,8 +23,20 @@ export default function NoteContentEditor({ noteId, initialText }: NoteContentEd
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+        setIsActionMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleStartEdit = () => {
     setEditText(text);
@@ -196,61 +209,73 @@ export default function NoteContentEditor({ noteId, initialText }: NoteContentEd
   return (
     <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 flex flex-col min-h-[50vh] md:min-h-0">
       {/* Panel Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 border-b border-[var(--border)] pb-3">
-        <h2 className="text-[11px] sm:text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wide">
-          Extracted Text
+      <div className="flex items-center justify-between gap-3 mb-4 border-b border-[var(--border)] pb-3">
+        <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] truncate" title={noteTitle}>
+          {noteTitle}
         </h2>
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {/* Ringkaskan Button */}
-          <button
-            onClick={handleSummarize}
-            disabled={isSummarizing || isEditing || isRegenerating}
-            className="text-[10px] sm:text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
-            title="Ringkas catatan dengan AI"
-          >
-            {isSummarizing ? (
-              <>
-                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-amber-700 border-t-transparent rounded-full animate-spin" />
-                Meringkas...
-              </>
-            ) : (
-              <>
-                <span>{summary ? '🔄' : '✨'}</span>
-                {summary ? 'Regen Ringkasan' : 'Ringkaskan'}
-              </>
-            )}
-          </button>
-
-          {/* Regenerate Button */}
-          <button
-            onClick={handleRegenerate}
-            disabled={isRegenerating || isEditing || isSummarizing}
-            className="text-[10px] sm:text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
-            title="Generate ulang dengan AI"
-          >
-            {isRegenerating ? (
-              <>
-                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
-                Mengekstrak...
-              </>
-            ) : (
-              <>
-                <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                AI Regenerate
-              </>
-            )}
-          </button>
-
-          {/* Edit/Save buttons */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          {/* Action Menu (3-dots) */}
           {!isEditing ? (
-            <button
-              onClick={handleStartEdit}
-              disabled={isRegenerating || isSummarizing}
-              className="text-[10px] sm:text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
-            >
-              <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit Manual
-            </button>
+            <div className="relative flex-shrink-0" ref={actionMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsActionMenuOpen(!isActionMenuOpen)}
+                className="p-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)] transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                title="Pilihan Aksi"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+
+              {isActionMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg p-1.5 z-50 animate-fadeIn">
+                  <button
+                    onClick={() => {
+                      setIsActionMenuOpen(false);
+                      handleSummarize();
+                    }}
+                    disabled={isSummarizing || isRegenerating}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50 text-left"
+                  >
+                    {isSummarizing ? (
+                      <span className="w-3 h-3 border-2 border-amber-700 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    ) : (
+                      <span className="flex-shrink-0">{summary ? '🔄' : '✨'}</span>
+                    )}
+                    {isSummarizing ? 'Meringkas...' : (summary ? 'Regen Ringkasan' : 'Ringkaskan')}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsActionMenuOpen(false);
+                      handleRegenerate();
+                    }}
+                    disabled={isRegenerating || isSummarizing}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 text-left mt-0.5"
+                  >
+                    {isRegenerating ? (
+                      <span className="w-3 h-3 border-2 border-blue-700 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    ) : (
+                      <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                    )}
+                    {isRegenerating ? 'Mengekstrak...' : 'AI Regenerate'}
+                  </button>
+
+                  <div className="h-px bg-[var(--border)] my-1" />
+
+                  <button
+                    onClick={() => {
+                      setIsActionMenuOpen(false);
+                      handleStartEdit();
+                    }}
+                    disabled={isRegenerating || isSummarizing}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-2)] rounded-lg transition-colors disabled:opacity-50 text-left"
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Edit Manual
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-1.5">
               <button

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import DatePicker from '@/components/ui/DatePicker';
 
 interface Note {
   id: string;
@@ -19,9 +20,10 @@ interface NotesListProps {
   q?: string;
   folder?: string;
   folders: { id: string; name: string }[];
+  hideFolderFilter?: boolean;
 }
 
-export default function NotesList({ initialNotes, q, folder, folders }: NotesListProps) {
+export default function NotesList({ initialNotes, q, folder, folders, hideFolderFilter }: NotesListProps) {
   const [sortBy, setSortBy] = useState('newest');
   const [selectedFolder, setSelectedFolder] = useState(folder || '');
   const [notesState, setNotesState] = useState<Note[]>(initialNotes);
@@ -33,8 +35,49 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Dropdown states
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const [filterDate, setFilterDate] = useState('');
+
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFilterDate(e.target.value);
+    if (q) {
+      router.push(pathname);
+    }
+  };
+
+  const handleSortChange = (newSort: string) => {
+    setSortBy(newSort);
+    setIsSortDropdownOpen(false);
+    try {
+      localStorage.setItem('notes_sort_by', newSort);
+    } catch (e) {}
+    if (q) {
+      router.push(pathname);
+    }
+  };
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setIsSortDropdownOpen(false);
+      }
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setIsFolderDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     setNotesState(initialNotes);
@@ -95,12 +138,22 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
     }
   };
 
-  // Filter and sort notes whenever sortBy, selectedFolder, notesState, or lastViewed changes
+  // Filter and sort notes whenever sortBy, selectedFolder, filterDate, notesState, or lastViewed changes
   useEffect(() => {
     let filtered = [...notesState];
 
     if (selectedFolder) {
       filtered = filtered.filter((n) => n.folder?.id === selectedFolder);
+    }
+
+    if (filterDate) {
+      filtered = filtered.filter(n => {
+        const localDate = new Date(n.created_at);
+        const yyyy = localDate.getFullYear();
+        const mm = String(localDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(localDate.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}` === filterDate;
+      });
     }
 
     filtered.sort((a, b) => {
@@ -139,20 +192,7 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
     setSortedNotes(filtered);
   }, [sortBy, selectedFolder, notesState, lastViewed]);
 
-  if (!sortedNotes || sortedNotes.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-[var(--border)] rounded-2xl animate-fadeIn">
-        <svg className="text-[var(--text-muted)] mb-4" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        <p className="text-[var(--text-secondary)] font-medium mb-1">{q ? 'Tidak ada catatan ditemukan' : 'Belum ada catatan'}</p>
-        <p className="text-sm text-[var(--text-muted)]">{q ? 'Coba cari kata kunci lain' : 'Mulai dengan mengunggah catatan pertama Anda'}</p>
-        {!q && (
-          <Link href={`/dashboard/upload${selectedFolder ? `?folder=${selectedFolder}` : ''}`} className="mt-4 bg-[var(--accent)] text-[var(--accent-fg)] px-5 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
-            Unggah Catatan
-          </Link>
-        )}
-      </div>
-    );
-  }
+
 
   return (
     <div className="space-y-4">
@@ -219,61 +259,146 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
         </div>
       ) : (
         /* Sort & Filter Controls */
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-[var(--text-secondary)] px-1">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 text-xs text-[var(--text-secondary)] px-1">
+          <div className="flex items-center text-left mb-2 sm:mb-0">
             <span>Menampilkan <strong>{sortedNotes.length}</strong> catatan</span>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
             <button
               onClick={() => setIsSelectMode(true)}
-              className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px]"
+              className="flex-shrink-0 px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px] sm:text-[11px] min-h-[28px] flex items-center gap-1"
             >
-              ⚙️ Kelola Catatan
-            </button>
-          </div>
-          <div className="flex flex-row items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-            {folders && folders.length > 0 && (
-              <select
-                value={selectedFolder}
-                onChange={(e) => setSelectedFolder(e.target.value)}
-                className="flex-1 sm:flex-initial px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer text-[11px] sm:text-xs transition-all hover:border-[var(--text-muted)] min-w-0"
-              >
-                <option value="">📁 All Folders</option>
-                {folders.map(f => {
-                  let displayName = f.name;
-                  if (f.name && f.name.startsWith('{')) {
-                    try { displayName = JSON.parse(f.name).name; } catch (e) {}
-                  }
-                  return (
-                    <option key={f.id} value={f.id}>📁 {displayName}</option>
-                  );
-                })}
-              </select>
+            ⚙️ Kelola Catatan
+          </button>
+            
+            {!hideFolderFilter && folders && folders.length > 0 && (
+              <div className="relative flex-shrink-0" ref={folderDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
+                  className="px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[11px] sm:text-xs min-h-[32px] flex items-center gap-1.5 justify-between min-w-[110px] select-none"
+                >
+                  <span className="truncate max-w-[100px]">
+                    {selectedFolder ? (
+                      `📁 ${(() => {
+                        const f = folders.find(x => x.id === selectedFolder);
+                        if (!f) return 'All Folders';
+                        let displayName = f.name;
+                        if (f.name && f.name.startsWith('{')) {
+                          try { displayName = JSON.parse(f.name).name; } catch (e) {}
+                        }
+                        return displayName;
+                      })()}`
+                    ) : (
+                      '📁 All Folders'
+                    )}
+                  </span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform flex-shrink-0 ${isFolderDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+
+                {isFolderDropdownOpen && (
+                  <div className="absolute right-0 mt-1.5 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg py-1 z-50 animate-fadeIn text-[11px] sm:text-xs overflow-y-auto max-h-60 custom-scrollbar">
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedFolder(''); setIsFolderDropdownOpen(false); }}
+                      className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${selectedFolder === '' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
+                    >
+                      📁 All Folders
+                    </button>
+                    {folders.map(f => {
+                      let displayName = f.name;
+                      if (f.name && f.name.startsWith('{')) {
+                        try { displayName = JSON.parse(f.name).name; } catch (e) {}
+                      }
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => { setSelectedFolder(f.id); setIsFolderDropdownOpen(false); }}
+                          className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] truncate ${selectedFolder === f.id ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
+                        >
+                          📁 {displayName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
-            {/* Sort Controls */}
-            <select
-              value={sortBy}
-              onChange={(e) => {
-                const newSort = e.target.value;
-                setSortBy(newSort);
-                try {
-                  localStorage.setItem('notes_sort_by', newSort);
-                } catch (err) {
-                  console.error('Failed to save sort preference:', err);
-                }
+            {/* Date Filter */}
+            <DatePicker 
+              value={filterDate}
+              onChange={(date) => {
+                setFilterDate(date);
+                if (q) router.push(pathname);
               }}
-              className="flex-1 sm:flex-initial px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-bold text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer text-[11px] sm:text-xs transition-all hover:border-[var(--text-muted)] min-w-0"
-            >
-              <option value="newest">📅 Terbaru</option>
-              <option value="oldest">⏳ Terlama</option>
-              <option value="last-viewed">👁️ Dilihat</option>
-              <option value="folder">📁 Folder</option>
-            </select>
+              onClear={() => {
+                setFilterDate('');
+                if (q) router.push(pathname);
+              }}
+            />
+
+            {/* Sort Controls */}
+            <div className="relative flex-shrink-0" ref={sortDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                className="px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-bold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-all cursor-pointer text-[10px] sm:text-[11px] min-h-[28px] flex items-center gap-1 justify-between min-w-[85px] select-none"
+              >
+                <span>
+                  {sortBy === 'newest' && '📅 Terbaru'}
+                  {sortBy === 'oldest' && '⏳ Terlama'}
+                  {sortBy === 'last-viewed' && '👁️ Dilihat'}
+                </span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform flex-shrink-0 ${isSortDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+
+              {isSortDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-36 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg py-1 z-50 animate-fadeIn text-[11px] sm:text-xs overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => handleSortChange('newest')}
+                    className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${sortBy === 'newest' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
+                  >
+                    📅 Terbaru
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSortChange('oldest')}
+                    className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${sortBy === 'oldest' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
+                  >
+                    ⏳ Terlama
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSortChange('last-viewed')}
+                    className={`w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] flex items-center gap-1.5 font-semibold text-[var(--text-primary)] ${sortBy === 'last-viewed' ? 'bg-[var(--surface-2)] text-[var(--accent)]' : ''}`}
+                  >
+                    👁️ Dilihat
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Grid: 2 columns on mobile, 3 on larger screens */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
+      {(!sortedNotes || sortedNotes.length === 0) ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-[var(--border)] rounded-2xl animate-fadeIn mt-4">
+          <svg className="text-[var(--text-muted)] mb-4" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <p className="text-[var(--text-secondary)] font-medium mb-1">{q ? 'Tidak ada catatan ditemukan' : 'Belum ada catatan'}</p>
+          <p className="text-sm text-[var(--text-muted)]">{q ? 'Coba cari kata kunci lain' : 'Mulai dengan mengunggah catatan pertama Anda'}</p>
+          {!q && (
+            <Link href={`/dashboard/upload${selectedFolder ? `?folder=${selectedFolder}` : ''}`} className="mt-4 bg-[var(--accent)] text-[var(--accent-fg)] px-5 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
+              Unggah Catatan
+            </Link>
+          )}
+        </div>
+      ) : (
+        /* Grid: 2 columns on mobile, 3 on larger screens */
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
         {sortedNotes.map((note) => {
           const thumbnail = note.note_media?.find((m) => m.order_index === 0)?.media_url;
           const isSelected = selectedIds.includes(note.id);
@@ -352,7 +477,8 @@ export default function NotesList({ initialNotes, q, folder, folders }: NotesLis
             </Link>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

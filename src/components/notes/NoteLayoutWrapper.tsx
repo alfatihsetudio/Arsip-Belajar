@@ -6,9 +6,10 @@ import { createPortal } from 'react-dom';
 interface NoteLayoutWrapperProps {
   sortedMedia: Array<{ id: string; media_url: string; order_index: number }>;
   children: React.ReactNode;
+  headerActions?: React.ReactNode;
 }
 
-export default function NoteLayoutWrapper({ sortedMedia, children }: NoteLayoutWrapperProps) {
+export default function NoteLayoutWrapper({ sortedMedia, children, headerActions }: NoteLayoutWrapperProps) {
   const [isMinimized, setIsMinimized] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
@@ -224,8 +225,8 @@ export default function NoteLayoutWrapper({ sortedMedia, children }: NoteLayoutW
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Minimize / Maximize Photo Option Button (Lighter Secondary Style) */}
-      <div className="flex justify-end mb-1.5">
+      {/* Minimize / Maximize Photo Option Button & Actions */}
+      <div className="flex items-center justify-between mb-2">
         <button
           onClick={() => setIsMinimized(!isMinimized)}
           className="px-2.5 py-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] border border-[var(--border)] border-dashed rounded-lg text-[10px] sm:text-xs font-semibold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
@@ -242,6 +243,12 @@ export default function NoteLayoutWrapper({ sortedMedia, children }: NoteLayoutW
             </>
           )}
         </button>
+        
+        {headerActions && (
+          <div className="flex items-center">
+            {headerActions}
+          </div>
+        )}
       </div>
 
       {/* Vertical Stacking Layout: Photos strictly above the text canvas */}

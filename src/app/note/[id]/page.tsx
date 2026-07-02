@@ -9,6 +9,40 @@ import NoteChatAssistant from '@/components/notes/NoteChatAssistant';
 import NoteExamSection from '@/components/notes/NoteExamSection';
 import NoteLayoutWrapper from '@/components/notes/NoteLayoutWrapper';
 import { parseNoteContent } from '@/lib/utils/flashcardHelper';
+import type { Metadata } from 'next';
+import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data: note } = await supabase
+    .from('notes')
+    .select('title')
+    .eq('id', id)
+    .single();
+
+  const title = note?.title?.trim() || 'Catatan';
+
+  return {
+    title,
+    description: `${title} - ${SITE_DESCRIPTION}`,
+    openGraph: {
+      title: `${title} | ${SITE_NAME}`,
+      description: `${title} - ${SITE_DESCRIPTION}`,
+      type: 'article',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${title} | ${SITE_NAME}`,
+      description: `${title} - ${SITE_DESCRIPTION}`,
+    },
+  };
+}
 
 export default async function PublicNoteDetailPage({
   params,

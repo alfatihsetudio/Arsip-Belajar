@@ -13,11 +13,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { message, history } = await req.json();
+    const { message, history, sessionId } = await req.json();
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Pesan kosong' }, { status: 400 });
     }
+
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Session ID diperlukan' }, { status: 400 });
+    }
+
+    // Save user message to database
+    await supabase.from('ai_chat_messages').insert({
+      session_id: sessionId,
+      role: 'user',
+      content: message
+    });
 
     // Call Gemini API
     const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
@@ -42,6 +53,13 @@ export async function POST(req: NextRequest) {
 
     const result = await model.generateContent(prompt);
     const reply = result.response.text().trim();
+
+    // Save assistant reply to database
+    await supabase.from('ai_chat_messages').insert({
+      session_id: sessionId,
+      role: 'assistant',
+      content: reply
+    });
 
     return NextResponse.json({ reply });
   } catch (err: any) {

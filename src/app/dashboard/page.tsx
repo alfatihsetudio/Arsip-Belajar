@@ -26,7 +26,9 @@ export default async function DashboardPage({
     .order('created_at', { ascending: false });
 
   if (q) {
-    query = query.or(`title.ilike.%${q}%,transcribed_text.ilike.%${q}%`);
+    // Escape double quotes and wrap in double quotes to safely handle commas and spaces
+    const safeQ = q.replace(/"/g, '""');
+    query = query.or(`title.ilike."%${safeQ}%",transcribed_text.ilike."%${safeQ}%"`);
   }
 
   const { data: notes } = await query;
@@ -50,12 +52,19 @@ export default async function DashboardPage({
           <input
             name="q"
             defaultValue={q}
-            placeholder="Search notes..."
-            className="w-full pl-8 pr-16 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs focus:outline-none focus:border-[var(--accent)] transition-colors"
+            placeholder="Cari catatan..."
+            className="w-full pl-8 pr-20 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs focus:outline-none focus:border-[var(--accent)] transition-colors"
           />
-          <button type="submit" className="absolute right-1 px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-fg)] rounded-md text-[10px] font-bold hover:opacity-90 transition-opacity">
-            Search
-          </button>
+          <div className="absolute right-1 flex items-center gap-1">
+            {q && (
+              <Link href="/dashboard" className="px-1.5 py-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-xs font-bold">
+                ✕
+              </Link>
+            )}
+            <button type="submit" className="px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-fg)] rounded-md text-[10px] font-bold hover:opacity-90 transition-opacity">
+              Cari
+            </button>
+          </div>
         </div>
       </form>
 

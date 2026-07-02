@@ -94,16 +94,23 @@ export default async function DashboardFolderPage({
             name="q"
             defaultValue={q}
             placeholder={`Cari di folder ${displayName}...`}
-            className="w-full pl-8 pr-16 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs focus:outline-none focus:border-[var(--accent)] transition-colors"
+            className="w-full pl-8 pr-20 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs focus:outline-none focus:border-[var(--accent)] transition-colors"
           />
-          <button type="submit" className="absolute right-1 px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-fg)] rounded-md text-[10px] font-bold hover:opacity-90 transition-opacity">
-            Cari
-          </button>
+          <div className="absolute right-1 flex items-center gap-1">
+            {q && (
+              <Link href={`/dashboard/folder/${id}`} className="px-1.5 py-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-xs font-bold">
+                ✕
+              </Link>
+            )}
+            <button type="submit" className="px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-fg)] rounded-md text-[10px] font-bold hover:opacity-90 transition-opacity">
+              Cari
+            </button>
+          </div>
         </div>
       </form>
 
       {/* Notes List */}
-      <NotesList initialNotes={(notes as any[]) || []} folders={folders || []} />
+      <NotesList initialNotes={(notes as any[]) || []} folders={folders || []} hideFolderFilter={true} />
     </div>
   );
 }

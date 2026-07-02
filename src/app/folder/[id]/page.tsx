@@ -1,6 +1,40 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import { SITE_DESCRIPTION, SITE_NAME, parseFolderInfo } from '@/lib/site';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data: folder } = await supabase
+    .from('folders')
+    .select('name')
+    .eq('id', id)
+    .single();
+
+  const folderInfo = parseFolderInfo(folder?.name || 'Folder');
+
+  return {
+    title: folderInfo.displayName,
+    description: `${folderInfo.displayName} - ${SITE_DESCRIPTION}`,
+    openGraph: {
+      title: `${folderInfo.displayName} | ${SITE_NAME}`,
+      description: `${folderInfo.displayName} - ${SITE_DESCRIPTION}`,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${folderInfo.displayName} | ${SITE_NAME}`,
+      description: `${folderInfo.displayName} - ${SITE_DESCRIPTION}`,
+    },
+  };
+}
 
 export default async function PublicFolderPage({
   params,
@@ -20,11 +54,9 @@ export default async function PublicFolderPage({
     notFound();
   }
 
-  // Check if user is logged in
   const { data: { user } } = await supabase.auth.getUser();
   const isGuest = !user;
 
-  // Access Control Logic
   const visibility = folder.visibility || 'private';
   const allowedEmails = folder.allowed_emails || [];
   const isOwner = user?.id === folder.user_id;
@@ -57,24 +89,8 @@ export default async function PublicFolderPage({
     }
   }
 
-  // Parse folder info if JSON
-  let displayName = folder.name;
-  let description = '';
-  let color = '';
-  let emoji = '📁';
-  if (folder.name && folder.name.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(folder.name);
-      displayName = parsed.name || folder.name;
-      description = parsed.description || '';
-      color = parsed.color || '';
-      emoji = parsed.emoji || '📁';
-    } catch (e) {
-      // fallback
-    }
-  }
+  const { displayName, description, color, emoji } = parseFolderInfo(folder.name);
 
-  // Fetch Notes inside this folder
   const { data: notes } = await supabase
     .from('notes')
     .select('id, title, created_at')
@@ -85,7 +101,7 @@ export default async function PublicFolderPage({
     <div className="min-h-screen bg-[var(--bg)] p-4 sm:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         <header className="flex items-center gap-4 border-b border-[var(--border)] pb-6">
-          <div 
+          <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm"
             style={color ? { backgroundColor: `${color}15`, color: color } : { backgroundColor: 'var(--surface-2)' }}
           >
@@ -103,8 +119,8 @@ export default async function PublicFolderPage({
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {notes && notes.length > 0 ? (
             notes.map((note) => (
-              <Link 
-                key={note.id} 
+              <Link
+                key={note.id}
                 href={`/note/${note.id}`}
                 className="bg-[var(--surface)] border border-[var(--border)] p-5 rounded-2xl hover:border-[var(--text-muted)] hover:shadow-md transition-all group"
               >
