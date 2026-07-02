@@ -32,46 +32,50 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="h-full flex flex-col animate-fadeIn">
       <NoteViewTracker noteId={id} />
-      {/* Note Header */}
-      <div className="flex items-center justify-between gap-2 mb-2.5">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <Link href="/dashboard" className="p-1 rounded-lg hover:bg-[var(--surface-2)] text-[var(--text-secondary)] transition-colors flex-shrink-0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      {/* Breadcrumb Note Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] p-2.5 px-4 mb-4 rounded-xl border border-[var(--border)] shadow-sm">
+        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0 min-w-0">
+          <Link href="/dashboard" className="text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-1.5 flex-shrink-0">
+            <div className="w-6 h-6 rounded-md bg-[var(--surface-2)] flex items-center justify-center text-[10px] font-bold">A</div>
+            Arsip Belajar
           </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-base font-bold text-[var(--text-primary)] truncate leading-tight">{note.title}</h1>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 leading-none">
-              {note.folder && (
-                <span 
-                  className="text-[9px] font-semibold px-1.5 py-0.25 rounded-full whitespace-nowrap inline-block"
-                  style={(() => {
-                    let color = '';
-                    if (note.folder.name.startsWith('{')) {
-                      try { color = JSON.parse(note.folder.name).color; } catch (e) {}
-                    }
-                    return color ? { backgroundColor: `${color}15`, color: color } : { backgroundColor: 'var(--surface-2)', color: 'var(--text-muted)' };
-                  })()}
-                >
+          
+          {note.folder && (
+            <>
+              <svg className="text-[var(--text-muted)] flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <Link 
+                href={`/dashboard/folder/${note.folder.id}`} 
+                className="flex items-center gap-1.5 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors px-2 py-1 rounded-md flex-shrink-0"
+                style={(() => {
+                  let color = '';
+                  if (note.folder.name.startsWith('{')) {
+                    try { color = JSON.parse(note.folder.name).color; } catch (e) {}
+                  }
+                  return color ? { color: color } : {};
+                })()}
+              >
+                <span>
                   {(() => {
+                    let emoji = '📁';
                     if (note.folder.name.startsWith('{')) {
-                      try { return JSON.parse(note.folder.name).name; } catch (e) {}
+                      try { emoji = JSON.parse(note.folder.name).emoji || emoji; } catch (e) {}
                     }
-                    return note.folder.name;
+                    return emoji;
                   })()}
                 </span>
-              )}
-              <span className="text-[9px] text-[var(--text-muted)] whitespace-nowrap inline-block">
                 {(() => {
-                  const d = new Date(note.created_at);
-                  const hours = String(d.getHours()).padStart(2, '0');
-                  const minutes = String(d.getMinutes()).padStart(2, '0');
-                  const day = d.getDate();
-                  const month = d.toLocaleDateString(undefined, { month: 'short' });
-                  const year = d.getFullYear();
-                  return `${hours}:${minutes}, ${day} ${month} ${year}`;
+                  if (note.folder.name.startsWith('{')) {
+                    try { return JSON.parse(note.folder.name).name; } catch (e) {}
+                  }
+                  return note.folder.name;
                 })()}
-              </span>
-            </div>
+              </Link>
+            </>
+          )}
+
+          <svg className="text-[var(--text-muted)] flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--text-primary)] bg-[var(--surface-2)] px-2.5 py-1 rounded-md truncate max-w-[200px] sm:max-w-[300px]">
+            📄 {note.title}
           </div>
         </div>
         <div className="flex-shrink-0">

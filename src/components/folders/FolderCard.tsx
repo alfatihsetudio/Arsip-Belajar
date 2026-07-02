@@ -139,7 +139,7 @@ export default function FolderCard({ folder }: { folder: any }) {
   return (
     <>
     <Link
-      href={`/dashboard?folder=${folder.id}`}
+      href={`/dashboard/folder/${folder.id}`}
       className="bg-[var(--surface)] border border-[var(--border)] p-2.5 sm:p-3 rounded-xl hover:border-[var(--text-muted)] hover:shadow-sm transition-all flex items-center justify-between gap-2 group min-w-0 w-full h-[60px] sm:h-[68px]"
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
