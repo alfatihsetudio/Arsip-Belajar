@@ -9,10 +9,26 @@ export const metadata: Metadata = {
   description: 'Sign in to ArsipBelajar – your AI-powered personal study archive.',
 };
 
-export default function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--bg)]">
       <div className="w-full max-w-sm text-center space-y-8 animate-fadeIn">
+
+        {/* Shared note notice */}
+        {next && (
+          <div className="bg-[var(--accent)]/10 border border-[var(--accent)]/20 rounded-2xl p-4 text-left">
+            <p className="text-sm font-bold text-[var(--text-primary)] mb-1">🔗 Catatan dibagikan kepadamu</p>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Login dengan Google untuk melihat catatan tersebut dan menyimpannya ke daftarmu.
+            </p>
+          </div>
+        )}
 
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
@@ -42,7 +58,7 @@ export default function LandingPage() {
 
         {/* CTA */}
         <div className="space-y-3">
-          <LoginButton />
+          <LoginButton redirectAfter={next} />
           <p className="text-xs text-[var(--text-muted)]">
             Free to use. No credit card required.
           </p>

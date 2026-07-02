@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-export default function LoginButton() {
+export default function LoginButton({ redirectAfter }: { redirectAfter?: string }) {
   const [loading, setLoading] = useState(false);
   const [isInAppBrowser, setIsInAppBrowser] = useState(false);
   const supabase = createClient();
@@ -16,9 +16,11 @@ export default function LoginButton() {
 
   const handleLogin = async () => {
     setLoading(true);
+    const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
+    if (redirectAfter) callbackUrl.searchParams.set('next', redirectAfter);
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl.toString() },
     });
   };
 

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import DuplicateButton from '@/components/notes/DuplicateButton';
 import FlashcardsSection from '@/components/notes/FlashcardsSection';
@@ -55,6 +55,7 @@ export default async function PublicNoteDetailPage({
   const id = idSegments.join('-');
   const supabase = await createClient();
 
+  // ─── 1. Fetch the note ──────────────────────────────────────────────────
   const { data: note, error } = await supabase
     .from('notes')
     .select(`
@@ -69,15 +70,16 @@ export default async function PublicNoteDetailPage({
     notFound();
   }
 
-  // Check if user is logged in
+  // ─── 2. Auth check ──────────────────────────────────────────────────────
   const { data: { user } } = await supabase.auth.getUser();
   const isGuest = !user;
+  const isOwner = user?.id === note.user_id;
 
-  // Access Control Logic (Note vs Folder Inheritance)
+  // ─── 3. Access control ──────────────────────────────────────────────────
   let visibility = note.visibility || 'private';
   let allowedEmails = note.allowed_emails || [];
-  
-  // Inherit from folder if note is private but folder is shared
+
+  // Inherit visibility from parent folder if note is private but folder is shared
   if (visibility === 'private' && note.folders) {
     if (note.folders.visibility !== 'private') {
       visibility = note.folders.visibility;
@@ -85,155 +87,198 @@ export default async function PublicNoteDetailPage({
     }
   }
 
-  const isOwner = user?.id === note.user_id;
+  // Guest users: redirect to login page so they can authenticate and return here
+  if (isGuest) {
+    const returnUrl = `/note/${id}`;
+    redirect(`/?next=${encodeURIComponent(returnUrl)}`);
+  }
 
+  // Logged-in non-owner: check if they have access
   if (!isOwner) {
-    let accessGranted = true;
-
     if (visibility === 'private') {
-      accessGranted = false;
-    } else if (visibility === 'restricted') {
-      if (isGuest || !allowedEmails.includes(user.email || '')) {
-        accessGranted = false;
-      }
-    }
-
-    if (!accessGranted) {
       return (
         <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
-          <div>
-            <h1 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">Akses Ditolak</h1>
-            <p className="text-[var(--text-secondary)] mb-4">Catatan ini bersifat privat dan hanya dapat dilihat oleh pemiliknya.</p>
-            <Link href="/" className="text-[var(--accent)] font-semibold hover:underline">Kembali ke Beranda</Link>
+          <div className="max-w-sm">
+            <div className="w-16 h-16 rounded-full bg-[var(--surface-2)] flex items-center justify-center mx-auto mb-4 text-3xl">🔒</div>
+            <h1 className="text-xl font-bold mb-2 text-[var(--text-primary)]">Catatan Privat</h1>
+            <p className="text-[var(--text-secondary)] mb-4 text-sm">Catatan ini bersifat privat dan hanya dapat dilihat oleh pemiliknya.</p>
+            <Link href="/dashboard" className="inline-block bg-[var(--accent)] text-[var(--accent-fg)] px-5 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity">
+              Kembali ke Dashboard
+            </Link>
           </div>
         </div>
       );
     }
-    if (visibility === 'restricted') {
+
+    if (visibility === 'restricted' && !allowedEmails.includes(user!.email || '')) {
       return (
         <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
-          <div>
-            <h1 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">Akses Terbatas</h1>
-            <p className="text-[var(--text-secondary)] mb-4">Anda tidak memiliki izin untuk melihat catatan ini.</p>
-            {isGuest ? (
-              <Link href="/" className="text-[var(--accent)] font-semibold hover:underline">Silakan Login Terlebih Dahulu</Link>
-            ) : (
-              <Link href="/dashboard" className="text-[var(--accent)] font-semibold hover:underline">Kembali ke Dashboard</Link>
-            )}
+          <div className="max-w-sm">
+            <div className="w-16 h-16 rounded-full bg-[var(--surface-2)] flex items-center justify-center mx-auto mb-4 text-3xl">⛔</div>
+            <h1 className="text-xl font-bold mb-2 text-[var(--text-primary)]">Akses Terbatas</h1>
+            <p className="text-[var(--text-secondary)] mb-4 text-sm">
+              Email <strong>{user!.email}</strong> tidak memiliki izin untuk melihat catatan ini.
+              Hubungi pemilik catatan untuk meminta akses.
+            </p>
+            <Link href="/dashboard" className="inline-block bg-[var(--accent)] text-[var(--accent-fg)] px-5 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity">
+              Kembali ke Dashboard
+            </Link>
           </div>
         </div>
       );
     }
   }
 
-  // Log to history if accessed by another logged-in user
+  // ─── 4. Auto-save to shared history (fire and forget) ───────────────────
   if (!isOwner && user) {
-    // Fire and forget (don't await) to not block render
-    supabase.from('shared_notes_history').insert({ user_id: user.id, note_id: note.id })
+    supabase
+      .from('shared_notes_history')
+      .upsert({ user_id: user.id, note_id: note.id, created_at: new Date().toISOString() }, { onConflict: 'user_id,note_id' })
       .then(({ error: histErr }) => {
-        if (histErr && histErr.code !== '23505') { // Ignore unique violation
-          console.error('Failed to log history', histErr);
-        }
+        if (histErr) console.error('Failed to log shared history', histErr);
       });
   }
 
+  // ─── 5. Prepare data ────────────────────────────────────────────────────
   const sortedMedia = note.note_media && note.note_media.length > 0
     ? note.note_media
-    : note.image_url 
-      ? [{ id: 'default', media_url: note.image_url, order_index: 0 }] 
+    : note.image_url
+      ? [{ id: 'default', media_url: note.image_url, order_index: 0 }]
       : [];
 
   const { textContent, flashcards, mindmap } = parseNoteContent(note.transcribed_text || '');
 
+  // ─── 6. Render ──────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[var(--bg)] flex flex-col">
-      {/* Header */}
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="border-b border-[var(--border)] bg-[var(--surface)] sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex-shrink-0"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-              Masuk ke Arsip Belajar
+              Dashboard
             </Link>
-            {!isOwner && !isGuest && (
+
+            {/* Owner badge / Shared badge */}
+            {isOwner ? (
+              <span className="text-[10px] font-semibold px-2 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full flex-shrink-0">
+                📝 Catatan Saya
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold px-2 py-0.5 bg-[var(--surface-2)] text-[var(--text-muted)] rounded-full flex-shrink-0">
+                🔗 Dibagikan
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* User avatar */}
+            {user && (
+              <div className="flex items-center gap-1.5">
+                {user.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-6 h-6 rounded-full" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center text-[10px] font-bold">
+                    {(user.email || 'U')[0].toUpperCase()}
+                  </div>
+                )}
+                <span className="text-[11px] text-[var(--text-secondary)] hidden sm:block truncate max-w-[120px]">
+                  {user.user_metadata?.full_name || user.email}
+                </span>
+              </div>
+            )}
+
+            {/* Duplicate / Save to my library button */}
+            {!isOwner && (
               <Suspense fallback={null}>
                 <DuplicateButton noteId={note.id} />
               </Suspense>
             )}
           </div>
-          <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-2.5 py-1 rounded-md">
-            Catatan Publik Shared
-          </span>
         </div>
       </header>
 
-      {/* Main Layout */}
+      {/* ── Banner: Shared note notice ──────────────────────────────────── */}
+      {!isOwner && (
+        <div className="bg-[var(--accent)]/5 border-b border-[var(--accent)]/10">
+          <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+            <p className="text-xs text-[var(--text-secondary)]">
+              📂 Anda melihat catatan milik orang lain. Catatan ini tersimpan di <strong>Catatan Dibagikan</strong> Anda.
+              Perubahan yang Anda buat <strong>tidak</strong> mempengaruhi catatan asli.
+            </p>
+            <Link
+              href="/dashboard/shared"
+              className="text-[10px] font-bold text-[var(--accent)] hover:underline whitespace-nowrap flex-shrink-0"
+            >
+              Lihat Semua →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main ───────────────────────────────────────────────────────── */}
       <main className="max-w-5xl mx-auto p-4 sm:p-6 w-full flex-1 flex flex-col min-h-0">
+
         {/* Title */}
         <div className="mb-4">
           <h1 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] tracking-tight">{note.title}</h1>
           <p className="text-[10px] sm:text-xs text-[var(--text-muted)] mt-0.5">
-            Dibuat pada {new Date(note.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+            Dibuat pada {new Date(note.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
 
-        {/* Quick Navigation Shortcuts */}
+        {/* Quick Nav */}
         <div className="mb-3 pb-2.5 border-b border-[var(--border)]">
-          <span className="text-[9px] font-extrabold text-[var(--text-muted)] uppercase tracking-wider block mb-1.5">Fitur AI Catatan (Pratinjau)</span>
+          <span className="text-[9px] font-extrabold text-[var(--text-muted)] uppercase tracking-wider block mb-1.5">
+            Fitur AI Catatan
+          </span>
           <div className="grid grid-cols-2 md:flex md:flex-wrap gap-1.5">
-            <Link 
-              href={isGuest ? "/" : "#flashcards"} 
-              className="flex items-center justify-center md:justify-start gap-1 py-1.5 px-2 bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] rounded-xl text-[10px] font-bold transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-            >
-              <span className="text-xs">🎴</span>
-              <span>Flashcards</span>
-            </Link>
-            <Link 
-              href={isGuest ? "/" : "#mindmap"} 
-              className="flex items-center justify-center md:justify-start gap-1 py-1.5 px-2 bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] rounded-xl text-[10px] font-bold transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-            >
-              <span className="text-xs">🗺️</span>
-              <span>Mind Map</span>
-            </Link>
-            <Link 
-              href={isGuest ? "/" : "#chat"} 
-              className="flex items-center justify-center md:justify-start gap-1 py-1.5 px-2 bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] rounded-xl text-[10px] font-bold transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-            >
-              <span className="text-xs">💬</span>
-              <span>Tanya AI</span>
-            </Link>
-            <Link 
-              href={isGuest ? "/" : "#exam-card"}
-              className="flex items-center justify-center md:justify-start gap-1 py-1.5 px-2 bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] rounded-xl text-[10px] font-bold transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-            >
-              <span className="text-xs">📝</span>
-              <span>Latihan Soal</span>
-            </Link>
+            {[
+              { href: '#flashcards', emoji: '🎴', label: 'Flashcards' },
+              { href: '#mindmap', emoji: '🗺️', label: 'Mind Map' },
+              { href: '#chat', emoji: '💬', label: 'Tanya AI' },
+              { href: '#exam-card', emoji: '📝', label: 'Latihan Soal' },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="flex items-center justify-center md:justify-start gap-1 py-1.5 px-2 bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] rounded-xl text-[10px] font-bold transition-all active:scale-95"
+              >
+                <span className="text-xs">{item.emoji}</span>
+                <span>{item.label}</span>
+              </a>
+            ))}
           </div>
         </div>
 
-        {/* Split-Screen Content with Minimize & Lightbox Zoom/Pan features */}
+        {/* Content + AI Sections */}
         <NoteLayoutWrapper sortedMedia={sortedMedia}>
-          {/* Read-Only Extracted Text */}
+          {/* Read-Only Text */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 flex flex-col min-h-[30vh]">
             <h2 className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wide mb-3 border-b border-[var(--border)] pb-2">
               Catatan Ekstraksi Teks
             </h2>
             <div className="text-xs sm:text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
-              {textContent || "Tidak ada teks yang diekstraksi dari catatan ini."}
+              {textContent || 'Tidak ada teks yang diekstraksi dari catatan ini.'}
             </div>
           </div>
 
+          {/* AI features — shown to all logged-in users, read-only for non-owners */}
           <div id="flashcards">
-            <FlashcardsSection noteId={id} initialFlashcards={flashcards} isGuest={isGuest} />
+            <FlashcardsSection noteId={id} initialFlashcards={flashcards} isGuest={false} />
           </div>
           <div id="mindmap">
-            <MindMapSection noteId={id} initialMindmap={mindmap} isGuest={isGuest} />
+            <MindMapSection noteId={id} initialMindmap={mindmap} isGuest={false} />
           </div>
           <div id="chat">
-            <NoteChatAssistant noteId={id} isGuest={isGuest} />
+            <NoteChatAssistant noteId={id} isGuest={false} />
           </div>
-          <NoteExamSection noteId={id} isGuest={isGuest} />
+          <NoteExamSection noteId={id} isGuest={false} />
         </NoteLayoutWrapper>
       </main>
     </div>
