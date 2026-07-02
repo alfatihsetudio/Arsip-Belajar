@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
+import DuplicateButton from '@/components/notes/DuplicateButton';
 import FlashcardsSection from '@/components/notes/FlashcardsSection';
 import MindMapSection from '@/components/notes/MindMapSection';
 import NoteChatAssistant from '@/components/notes/NoteChatAssistant';
@@ -18,7 +20,7 @@ export default async function PublicNoteDetailPage({
 
   const { data: note, error } = await supabase
     .from('notes')
-    .select(`*, note_media(id, media_url, order_index, media_type)`)
+    .select(`*, note_media(id, media_url, order_index, media_type), folders(id, visibility, allowed_emails)`)
     .eq('id', id)
     .single();
 
@@ -30,13 +32,32 @@ export default async function PublicNoteDetailPage({
   const { data: { user } } = await supabase.auth.getUser();
   const isGuest = !user;
 
-  // Access Control Logic
-  const visibility = note.visibility || 'private';
-  const allowedEmails = note.allowed_emails || [];
+  // Access Control Logic (Note vs Folder Inheritance)
+  let visibility = note.visibility || 'private';
+  let allowedEmails = note.allowed_emails || [];
+  
+  // Inherit from folder if note is private but folder is shared
+  if (visibility === 'private' && note.folders) {
+    if (note.folders.visibility !== 'private') {
+      visibility = note.folders.visibility;
+      allowedEmails = note.folders.allowed_emails || [];
+    }
+  }
+
   const isOwner = user?.id === note.user_id;
 
   if (!isOwner) {
+    let accessGranted = true;
+
     if (visibility === 'private') {
+      accessGranted = false;
+    } else if (visibility === 'restricted') {
+      if (isGuest || !allowedEmails.includes(user.email || '')) {
+        accessGranted = false;
+      }
+    }
+
+    if (!accessGranted) {
       return (
         <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
           <div>
@@ -48,22 +69,31 @@ export default async function PublicNoteDetailPage({
       );
     }
     if (visibility === 'restricted') {
-      if (isGuest || !allowedEmails.includes(user.email || '')) {
-        return (
-          <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
-            <div>
-              <h1 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">Akses Terbatas</h1>
-              <p className="text-[var(--text-secondary)] mb-4">Anda tidak memiliki izin untuk melihat catatan ini.</p>
-              {isGuest ? (
-                <Link href="/" className="text-[var(--accent)] font-semibold hover:underline">Silakan Login Terlebih Dahulu</Link>
-              ) : (
-                <Link href="/dashboard" className="text-[var(--accent)] font-semibold hover:underline">Kembali ke Dashboard</Link>
-              )}
-            </div>
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
+          <div>
+            <h1 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">Akses Terbatas</h1>
+            <p className="text-[var(--text-secondary)] mb-4">Anda tidak memiliki izin untuk melihat catatan ini.</p>
+            {isGuest ? (
+              <Link href="/" className="text-[var(--accent)] font-semibold hover:underline">Silakan Login Terlebih Dahulu</Link>
+            ) : (
+              <Link href="/dashboard" className="text-[var(--accent)] font-semibold hover:underline">Kembali ke Dashboard</Link>
+            )}
           </div>
-        );
-      }
+        </div>
+      );
     }
+  }
+
+  // Log to history if accessed by another logged-in user
+  if (!isOwner && user) {
+    // Fire and forget (don't await) to not block render
+    supabase.from('shared_notes_history').insert({ user_id: user.id, note_id: note.id })
+      .then(({ error: histErr }) => {
+        if (histErr && histErr.code !== '23505') { // Ignore unique violation
+          console.error('Failed to log history', histErr);
+        }
+      });
   }
 
   // Media parsing with fallback for legacy image_url notes
@@ -80,10 +110,17 @@ export default async function PublicNoteDetailPage({
       {/* Header */}
       <header className="border-b border-[var(--border)] bg-[var(--surface)] sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-            Masuk ke Arsip Belajar
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              Masuk ke Arsip Belajar
+            </Link>
+            {!isOwner && !isGuest && (
+              <Suspense fallback={null}>
+                <DuplicateButton noteId={note.id} />
+              </Suspense>
+            )}
+          </div>
           <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-2.5 py-1 rounded-md">
             Catatan Publik Shared
           </span>

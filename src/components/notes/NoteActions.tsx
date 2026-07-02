@@ -99,7 +99,8 @@ export default function NoteActions({
       <ShareModal 
         isOpen={isShareModalOpen} 
         onClose={() => setIsShareModalOpen(false)} 
-        noteId={noteId}
+        itemId={noteId}
+        itemType="note"
         initialVisibility={initialVisibility}
         initialAllowedEmails={initialAllowedEmails}
       />

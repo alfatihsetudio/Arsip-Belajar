@@ -7,7 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
-  noteId: string;
+  itemId: string;
+  itemType?: 'note' | 'folder';
   initialVisibility: 'private' | 'restricted' | 'public';
   initialAllowedEmails: string[];
 }
@@ -15,7 +16,8 @@ interface ShareModalProps {
 export default function ShareModal({
   isOpen,
   onClose,
-  noteId,
+  itemId,
+  itemType = 'note',
   initialVisibility,
   initialAllowedEmails,
 }: ShareModalProps) {
@@ -58,13 +60,14 @@ export default function ShareModal({
       return;
     }
 
+    const table = itemType === 'folder' ? 'folders' : 'notes';
     const { error } = await supabase
-      .from('notes')
+      .from(table)
       .update({
         visibility: visibility,
         allowed_emails: emails,
       })
-      .eq('id', noteId)
+      .eq('id', itemId)
       .eq('user_id', user.id);
 
     setIsSaving(false);
@@ -78,7 +81,7 @@ export default function ShareModal({
   };
 
   const handleCopyLink = () => {
-    const publicUrl = `${window.location.origin}/note/${noteId}`;
+    const publicUrl = `${window.location.origin}/${itemType}/${itemId}`;
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -91,7 +94,7 @@ export default function ShareModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface)]">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">Bagikan Catatan</h2>
+          <h2 className="text-lg font-bold text-[var(--text-primary)]">Bagikan {itemType === 'folder' ? 'Folder' : 'Catatan'}</h2>
           <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
