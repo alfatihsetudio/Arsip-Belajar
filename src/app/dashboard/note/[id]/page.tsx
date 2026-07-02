@@ -26,7 +26,11 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
 
   if (error || !note) notFound();
 
-  const sortedMedia = (note.note_media || []).sort((a: any, b: any) => a.order_index - b.order_index);
+  const sortedMedia = note.note_media && note.note_media.length > 0
+    ? [...note.note_media].sort((a: any, b: any) => a.order_index - b.order_index)
+    : note.image_url 
+      ? [{ id: 'default', media_url: note.image_url, order_index: 0 }] 
+      : [];
   const { flashcards, mindmap } = parseNoteContent(note.transcribed_text);
 
   return (
