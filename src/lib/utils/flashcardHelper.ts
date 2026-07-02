@@ -64,7 +64,7 @@ export function serializeNoteContent(
   textContent: string, 
   flashcards: Flashcard[], 
   mindmap: MindmapNode | null = null,
-  summary: string = ''
+  summary: string | null = null
 ): string {
   let result = textContent.trim();
   if (summary) {

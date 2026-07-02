@@ -113,7 +113,7 @@ export default function NoteContentEditor({ noteId, initialText }: NoteContentEd
 
       if (error) throw error;
       
-      setSummary(null);
+      setSummary('');
       router.refresh();
     } catch (err: any) {
       await showAlert('Gagal menghapus ringkasan: ' + err.message);
