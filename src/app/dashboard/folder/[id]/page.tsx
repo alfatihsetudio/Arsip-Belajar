@@ -68,21 +68,20 @@ export default async function DashboardFolderPage({
   return (
     <div className="max-w-5xl mx-auto space-y-4 animate-fadeIn">
       {/* Breadcrumb Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] p-3 px-4 rounded-xl border border-[var(--border)] shadow-sm">
-        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0">
-          <Link href="/dashboard" className="text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-1.5">
-            <div className="w-6 h-6 rounded-md bg-[var(--surface-2)] flex items-center justify-center text-[10px] font-bold">A</div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0">
+          <Link href="/dashboard" className="hover:text-[var(--text-primary)] transition-colors">
             Arsip Belajar
           </Link>
-          <svg className="text-[var(--text-muted)] flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--text-primary)] bg-[var(--surface-2)] px-2.5 py-1 rounded-md" style={color ? { color: color } : {}}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          <span className="font-semibold text-[var(--text-primary)] flex items-center gap-1" style={color ? { color: color } : {}}>
             <span>{emoji}</span>
             {displayName}
-          </div>
+          </span>
         </div>
         
-        <Link href={`/dashboard/upload?folder=${id}`} className="hidden sm:flex flex-shrink-0 items-center gap-2 bg-[var(--accent)] text-[var(--accent-fg)] px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <Link href={`/dashboard/upload?folder=${id}`} className="hidden sm:flex flex-shrink-0 items-center gap-1.5 bg-[var(--accent)] text-[var(--accent-fg)] px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Catatan Baru
         </Link>
       </div>

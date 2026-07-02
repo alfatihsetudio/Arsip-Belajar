@@ -33,19 +33,18 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
     <div className="h-full flex flex-col animate-fadeIn">
       <NoteViewTracker noteId={id} />
       {/* Breadcrumb Note Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] p-2.5 px-4 mb-4 rounded-xl border border-[var(--border)] shadow-sm">
-        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0 min-w-0">
-          <Link href="/dashboard" className="text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-1.5 flex-shrink-0">
-            <div className="w-6 h-6 rounded-md bg-[var(--surface-2)] flex items-center justify-center text-[10px] font-bold">A</div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0 min-w-0">
+          <Link href="/dashboard" className="hover:text-[var(--text-primary)] transition-colors flex-shrink-0">
             Arsip Belajar
           </Link>
           
           {note.folder && (
             <>
-              <svg className="text-[var(--text-muted)] flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="m9 18 6-6-6-6"/></svg>
               <Link 
                 href={`/dashboard/folder/${note.folder.id}`} 
-                className="flex items-center gap-1.5 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors px-2 py-1 rounded-md flex-shrink-0"
+                className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1 flex-shrink-0"
                 style={(() => {
                   let color = '';
                   if (note.folder.name.startsWith('{')) {
@@ -73,10 +72,10 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
             </>
           )}
 
-          <svg className="text-[var(--text-muted)] flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--text-primary)] bg-[var(--surface-2)] px-2.5 py-1 rounded-md truncate max-w-[200px] sm:max-w-[300px]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="m9 18 6-6-6-6"/></svg>
+          <span className="font-semibold text-[var(--text-primary)] truncate max-w-[150px] sm:max-w-[250px]">
             📄 {note.title}
-          </div>
+          </span>
         </div>
         <div className="flex-shrink-0">
           <NoteActions 
