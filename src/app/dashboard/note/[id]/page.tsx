@@ -31,7 +31,19 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
 
   if (error || !note) notFound();
 
-  const mediaToShow = note.note_media ?? [];
+  const mediaToShow = [...(note.note_media || [])];
+  
+  if (note.image_url && !mediaToShow.some(m => m.media_url === note.image_url)) {
+    mediaToShow.unshift({
+      id: 'legacy-media',
+      media_url: note.image_url,
+      order_index: -1,
+      media_type: note.image_url.includes('-audio.') || note.image_url.match(/\.(mp3|wav|ogg|m4a|mpeg|aac)(\?|$)/i) ? 'audio' : 'image'
+    });
+  }
+
+  mediaToShow.sort((a, b) => a.order_index - b.order_index);
+  
   const { flashcards, mindmap } = parseNoteContent(note.transcribed_text);
 
   return (
@@ -120,6 +132,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <DashboardNoteMediaPanel
+        noteId={id}
         media={mediaToShow}
         actions={
           <NoteActions

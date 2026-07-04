@@ -19,6 +19,12 @@ export default function NoteContentEditor({ noteId, noteTitle, initialText }: No
   const [summary, setSummary] = useState(initialSummary);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(textContent);
+  
+  const [currentTitle, setCurrentTitle] = useState(noteTitle);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState(noteTitle);
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+
   const [savedFlashcards, setSavedFlashcards] = useState(flashcards);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -27,6 +33,14 @@ export default function NoteContentEditor({ noteId, noteTitle, initialText }: No
   const actionMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    const { textContent: newText, flashcards: newFlashcards, summary: newSummary } = parseNoteContent(initialText);
+    setText(newText);
+    setEditText(newText);
+    setSavedFlashcards(newFlashcards);
+    setSummary(newSummary);
+  }, [initialText]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -69,6 +83,31 @@ export default function NoteContentEditor({ noteId, noteTitle, initialText }: No
       await showAlert('Gagal menyimpan perubahan: ' + err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveTitle = async () => {
+    if (!editTitleValue.trim()) return;
+    setIsSavingTitle(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+      
+      const { error } = await supabase
+        .from('notes')
+        .update({ title: editTitleValue.trim() })
+        .eq('id', noteId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      
+      setCurrentTitle(editTitleValue.trim());
+      setIsEditingTitle(false);
+      router.refresh();
+    } catch (err: any) {
+      await showAlert('Gagal menyimpan judul: ' + err.message);
+    } finally {
+      setIsSavingTitle(false);
     }
   };
 
@@ -210,9 +249,61 @@ export default function NoteContentEditor({ noteId, noteTitle, initialText }: No
     <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 flex flex-col min-h-[50vh] md:min-h-0">
       {/* Panel Header */}
       <div className="flex items-center justify-between gap-3 mb-4 border-b border-[var(--border)] pb-3">
-        <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] truncate" title={noteTitle}>
-          {noteTitle}
-        </h2>
+        {isEditingTitle ? (
+          <div className="flex-1 flex items-center gap-2 mr-2">
+            <input
+              type="text"
+              value={editTitleValue}
+              onChange={(e) => setEditTitleValue(e.target.value)}
+              disabled={isSavingTitle}
+              autoFocus
+              className="flex-1 text-base sm:text-lg font-bold bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] rounded-lg px-2 py-1 outline-none focus:border-[var(--accent)]"
+              placeholder="Judul catatan..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTitle();
+                if (e.key === 'Escape') {
+                  setIsEditingTitle(false);
+                  setEditTitleValue(currentTitle);
+                }
+              }}
+            />
+            <button
+              onClick={handleSaveTitle}
+              disabled={isSavingTitle || !editTitleValue.trim()}
+              className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex-shrink-0"
+              title="Simpan Judul"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button
+              onClick={() => {
+                setIsEditingTitle(false);
+                setEditTitleValue(currentTitle);
+              }}
+              disabled={isSavingTitle}
+              className="p-1.5 bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-3)] transition-colors flex-shrink-0"
+              title="Batal"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        ) : (
+          <div className="flex-1 min-w-0 flex items-center gap-2 group">
+            <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] truncate" title={currentTitle}>
+              {currentTitle}
+            </h2>
+            <button
+              onClick={() => {
+                setEditTitleValue(currentTitle);
+                setIsEditingTitle(true);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 rounded transition-all focus:opacity-100 flex-shrink-0"
+              title="Edit Judul"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* Action Menu (3-dots) */}
           {!isEditing ? (

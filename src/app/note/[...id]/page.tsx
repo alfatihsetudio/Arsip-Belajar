@@ -143,7 +143,12 @@ export default async function PublicNoteDetailPage({
   const sortedMedia = note.note_media && note.note_media.length > 0
     ? note.note_media
     : note.image_url
-      ? [{ id: 'default', media_url: note.image_url, order_index: 0 }]
+      ? [{ 
+          id: 'default', 
+          media_url: note.image_url, 
+          order_index: 0,
+          media_type: note.image_url.includes('-audio.') || note.image_url.match(/\.(mp3|wav|ogg|m4a|mpeg|aac)(\?|$)/i) ? 'audio' : 'image'
+        }]
       : [];
 
   const { textContent, flashcards, mindmap } = parseNoteContent(note.transcribed_text || '');

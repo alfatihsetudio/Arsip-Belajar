@@ -673,58 +673,12 @@ export default function SettingsClient({ user, stats }: SettingsClientProps) {
 
       {/* ── BILLING ─────────────────────────────────────────────────────────── */}
       {activeTab === 'billing' && (
-        <div className="space-y-4">
-          <div className="bg-gradient-to-br from-[var(--surface)] to-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1">Paket Saat Ini</p>
-                <p className="text-2xl font-extrabold text-[var(--text-primary)]">Gratis</p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">Paket dasar dengan fitur terbatas.</p>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)]">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-              </div>
-            </div>
-            <ul className="space-y-2 text-xs text-[var(--text-secondary)]">
-              {[
-                { ok: true, label: 'Hingga 50 catatan' },
-                { ok: true, label: 'Ringkasan & Flashcard AI' },
-                { ok: true, label: '1 GB penyimpanan gambar' },
-                { ok: false, label: 'Gemini Pro (model terbaik)' },
-                { ok: false, label: 'Ujian & analisis mendalam' },
-                { ok: false, label: 'Prioritas dukungan' },
-              ].map((item, i) => (
-                <li key={i} className={`flex items-center gap-2 ${!item.ok ? 'opacity-40' : ''}`}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={item.ok ? 'var(--accent)' : 'currentColor'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    {item.ok ? <polyline points="20 6 9 17 4 12"/> : <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>}
-                  </svg>
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="relative bg-gradient-to-br from-amber-500/10 via-[var(--surface)] to-purple-500/10 border border-amber-500/30 rounded-2xl p-5 overflow-hidden space-y-4">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full pointer-events-none" />
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-              </div>
-              <div>
-                <p className="font-extrabold text-sm text-[var(--text-primary)]">Upgrade ke Premium</p>
-                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Akses penuh semua fitur AI tanpa batas.</p>
-              </div>
-            </div>
-            <button
-              onClick={() => { window.location.href = '/dashboard/subscription'; }}
-              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-sm font-extrabold transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-2"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              Mulai Premium Sekarang
-            </button>
-          </div>
+        <div className="flex flex-col items-center justify-center py-12 text-center animate-fadeIn bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl">
+          <div className="text-4xl mb-3">🚀</div>
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Coming Soon</h2>
+          <p className="text-xs text-[var(--text-secondary)] max-w-[250px]">
+            We are working hard to bring you premium features. Stay tuned for exciting updates!
+          </p>
         </div>
       )}
 

@@ -25,6 +25,7 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [folderId, setFolderId] = useState(initialFolderId);
+  const [mergeStrategy, setMergeStrategy] = useState<'gabung' | 'pisah' | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState('');
@@ -149,6 +150,7 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
   const handleSubmit = async () => {
     if (images.length === 0 && !audioFile) return setError('Please add at least one image or audio file.');
     if (!isAutoTitle && !title.trim()) return setError('Please enter a title for your note.');
+    if (images.length > 0 && audioFile && !mergeStrategy) return setError('Silakan pilih metode Integrasi dengan Catatan Lama (Gabung atau Pisah) terlebih dahulu.');
 
     setIsProcessing(true);
     setError(null);
@@ -173,6 +175,10 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
 
       if (audioFile) {
         formData.append('audio', audioFile);
+      }
+      
+      if (images.length > 0 && audioFile) {
+        formData.append('merge_strategy', mergeStrategy!);
       }
 
       setProgress('Processing with AI...');
@@ -380,13 +386,12 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
           type="file" 
           accept="audio/*" 
           ref={audioInputRef} 
-          onChange={(e) => {
-            if (e.target.files && e.target.files[0]) {
-              setAudioFile(e.target.files[0]);
-              setImages([]); // If user picks audio, clear images to keep it simple
-            }
-            e.target.value = '';
-          }} 
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            setAudioFile(e.target.files[0]);
+          }
+          e.target.value = '';
+        }}
           className="hidden" 
         />
         
@@ -427,6 +432,48 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">
           {error}
+        </div>
+      )}
+
+      {/* Merge Strategy UI (Only when both exist) */}
+      {images.length > 0 && audioFile && (
+        <div className="mb-6 p-4 border border-[var(--border)] rounded-xl bg-[var(--surface-2)]">
+          <label className="block text-sm font-semibold text-[var(--text-primary)] mb-2">
+            Metode Transkripsi AI
+          </label>
+          <p className="text-xs text-[var(--text-secondary)] mb-4">
+            Anda mengunggah Foto dan Audio. Bagaimana AI harus memprosesnya?
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setMergeStrategy('pisah')}
+              className={`flex-1 p-3 rounded-lg border text-sm font-medium transition-all ${
+                mergeStrategy === 'pisah' 
+                  ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)] shadow-sm' 
+                  : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                Pisah
+              </div>
+              <span className={`text-[10px] font-normal block opacity-80 ${mergeStrategy === 'pisah' ? 'text-[var(--accent-fg)]' : 'text-[var(--text-muted)]'}`}>Catat terpisah (atas & bawah)</span>
+            </button>
+            <button
+              onClick={() => setMergeStrategy('gabung')}
+              className={`flex-1 p-3 rounded-lg border text-sm font-medium transition-all ${
+                mergeStrategy === 'gabung' 
+                  ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)] shadow-sm' 
+                  : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+                Gabung
+              </div>
+              <span className={`text-[10px] font-normal block opacity-80 ${mergeStrategy === 'gabung' ? 'text-[var(--accent-fg)]' : 'text-[var(--text-muted)]'}`}>Integrasi audio & foto terpadu</span>
+            </button>
+          </div>
         </div>
       )}
 
