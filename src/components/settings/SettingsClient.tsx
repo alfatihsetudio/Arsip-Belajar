@@ -53,17 +53,68 @@ function StyledSelect({ value, onChange, options, disabled }: {
   options: { value: string; label: string; disabled?: boolean }[];
   disabled?: boolean;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useState(() => {
+    if (typeof window !== 'undefined') {
+      const handleOutsideClick = (e: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleOutsideClick);
+      return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }
+  });
+
+  const activeOption = options.find(o => o.value === value) || options[0];
+
   return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      disabled={disabled}
-      className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 focus:outline-none focus:border-[var(--accent)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {options.map(o => (
-        <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
-      ))}
-    </select>
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 focus:outline-none focus:border-[var(--accent)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 justify-between min-w-[120px]"
+      >
+        <span>{activeOption?.label}</span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`text-[var(--text-secondary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1.5 w-44 animate-fadeIn">
+          {options.map(o => (
+            <button
+              key={o.value}
+              type="button"
+              disabled={o.disabled}
+              onClick={() => {
+                onChange(o.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-2)] ${
+                value === o.value ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -382,18 +433,18 @@ export default function SettingsClient({ user, stats }: SettingsClientProps) {
           {/* Education Level */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Jenjang Pendidikan</label>
-            <select
+            <StyledSelect
               value={eduLevel}
-              onChange={e => setEduLevel(e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-all cursor-pointer"
-            >
-              <option value="">— Pilih jenjang —</option>
-              <option value="SMP">SMP / MTs</option>
-              <option value="SMA">SMA / MA</option>
-              <option value="SMK">SMK</option>
-              <option value="Kuliah">Kuliah / Mahasiswa</option>
-              <option value="Umum">Umum / Profesional</option>
-            </select>
+              onChange={setEduLevel}
+              options={[
+                { value: '', label: '— Pilih jenjang —' },
+                { value: 'SMP', label: 'SMP / MTs' },
+                { value: 'SMA', label: 'SMA / MA' },
+                { value: 'SMK', label: 'SMK' },
+                { value: 'Kuliah', label: 'Kuliah / Mahasiswa' },
+                { value: 'Umum', label: 'Umum / Profesional' },
+              ]}
+            />
           </div>
 
           {/* Error message */}
