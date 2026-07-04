@@ -133,7 +133,10 @@ export default function Sidebar({ user }: { user: User }) {
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteProgress, setNoteProgress] = useState('');
   const [folders, setFolders] = useState<any[]>([]);
+  const [isNoteAutoTitle, setIsNoteAutoTitle] = useState(false);
   const noteFileInputRef = useRef<HTMLInputElement>(null);
+  const noteCameraInputRef = useRef<HTMLInputElement>(null);
+  const noteGalleryInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch folders for note modal selection
   useEffect(() => {
@@ -204,7 +207,7 @@ export default function Sidebar({ user }: { user: User }) {
   const handleCreateNoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (noteImages.length === 0) return setNoteError('Harap tambahkan minimal satu gambar catatan.');
-    if (!noteTitle.trim()) return setNoteError('Harap masukkan judul catatan.');
+    if (!isNoteAutoTitle && !noteTitle.trim()) return setNoteError('Harap masukkan judul catatan.');
 
     setNoteProcessing(true);
     setNoteError(null);
@@ -228,6 +231,7 @@ export default function Sidebar({ user }: { user: User }) {
       setNoteTitle('');
       setNoteFolderId('');
       setNoteImages([]);
+      setIsNoteAutoTitle(false);
       setShowNoteModal(false);
       
       router.push(`/dashboard/note/${data.noteId}`);
@@ -509,16 +513,36 @@ export default function Sidebar({ user }: { user: User }) {
 
             {/* Scrollable Form Body */}
             <form onSubmit={handleCreateNoteSubmit} className="flex-1 overflow-y-auto py-3 space-y-4 pr-1 text-left scrollbar-thin">
+              {/* Title + AI auto toggle */}
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-bold text-[var(--text-secondary)]">Judul Catatan</label>
-                <input
-                  value={noteTitle}
-                  onChange={(e) => setNoteTitle(e.target.value)}
-                  placeholder="Contoh: Aljabar - Bab 3"
-                  required
-                  disabled={noteProcessing}
-                  className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-all"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-[var(--text-secondary)]">Judul Catatan</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNoteAutoTitle(!isNoteAutoTitle);
+                      if (isNoteAutoTitle) setNoteTitle('');
+                    }}
+                    className="text-[10px] font-medium flex items-center gap-1 px-2 py-0.5 rounded-lg transition-colors border border-[var(--border)] hover:bg-[var(--surface-2)] text-indigo-400"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                    {isNoteAutoTitle ? 'Ketik Manual' : 'Otomatis AI'}
+                  </button>
+                </div>
+                {isNoteAutoTitle ? (
+                  <div className="w-full px-3 py-2 bg-indigo-500/5 border border-indigo-500/20 rounded-xl text-xs text-indigo-400 flex items-center gap-1.5 cursor-not-allowed">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                    <span className="font-medium">AI akan membuatkan judul otomatis</span>
+                  </div>
+                ) : (
+                  <input
+                    value={noteTitle}
+                    onChange={(e) => setNoteTitle(e.target.value)}
+                    placeholder="Contoh: Aljabar - Bab 3"
+                    disabled={noteProcessing}
+                    className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-all"
+                  />
+                )}
               </div>
 
               <div className="flex flex-col gap-1" ref={noteFolderDropdownRef}>
@@ -586,38 +610,39 @@ export default function Sidebar({ user }: { user: User }) {
                 </div>
               </div>
 
+              {/* Hidden file inputs */}
+              <input type="file" accept="image/*" capture="environment" ref={noteCameraInputRef} onChange={(e) => { if (e.target.files) handleAddImages(e.target.files); e.target.value = ''; }} className="hidden" disabled={noteProcessing} />
+              <input type="file" accept="image/*" multiple ref={noteGalleryInputRef} onChange={(e) => { if (e.target.files) handleAddImages(e.target.files); e.target.value = ''; }} className="hidden" disabled={noteProcessing} />
+
               {noteImages.length === 0 && (
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-bold text-[var(--text-secondary)]">
                     Gambar Catatan <span className="text-[var(--text-muted)] font-normal">(Unggah berurutan)</span>
                   </label>
-                  
-                  <div
-                    onClick={() => !noteProcessing && noteFileInputRef.current?.click()}
-                    className="border border-dashed border-[var(--border)] rounded-xl p-4 text-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-all"
-                  >
-                    <svg className="mx-auto text-[var(--text-muted)] mb-1.5" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <p className="text-[10px] font-medium text-[var(--text-secondary)]">Ketuk untuk memilih foto catatan</p>
-                    <p className="text-[9px] text-[var(--text-muted)] mt-0.5">Mendukung banyak gambar sekaligus</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div
+                      onClick={() => !noteProcessing && noteCameraInputRef.current?.click()}
+                      className="border border-[var(--border)] bg-[var(--surface-2)] rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 transition-colors"
+                    >
+                      <div className="w-9 h-9 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full flex items-center justify-center mb-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                      </div>
+                      <span className="text-[11px] font-semibold text-[var(--text-primary)]">Buka Kamera</span>
+                      <span className="text-[9px] text-[var(--text-muted)] mt-0.5 text-center">Foto langsung</span>
+                    </div>
+                    <div
+                      onClick={() => !noteProcessing && noteGalleryInputRef.current?.click()}
+                      className="border border-[var(--border)] bg-[var(--surface-2)] rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 transition-colors"
+                    >
+                      <div className="w-9 h-9 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full flex items-center justify-center mb-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                      </div>
+                      <span className="text-[11px] font-semibold text-[var(--text-primary)]">Pilih Galeri</span>
+                      <span className="text-[9px] text-[var(--text-muted)] mt-0.5 text-center">Bisa banyak</span>
+                    </div>
                   </div>
                 </div>
               )}
-
-              {/* Hidden file input (placed outside conditional wrapper to prevent unmounting/destruction) */}
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                ref={noteFileInputRef}
-                onChange={(e) => {
-                  if (e.target.files) {
-                    handleAddImages(e.target.files);
-                  }
-                  e.target.value = ''; // Reset value to allow selecting same images again
-                }}
-                className="hidden"
-                disabled={noteProcessing}
-              />
 
               {/* Image Previews Grid */}
               {noteImages.length > 0 && (
@@ -640,7 +665,7 @@ export default function Sidebar({ user }: { user: User }) {
                       </div>
                     ))}
                     <div
-                      onClick={() => !noteProcessing && noteFileInputRef.current?.click()}
+                      onClick={() => !noteProcessing && noteGalleryInputRef.current?.click()}
                       className="aspect-[3/4] border border-dashed border-[var(--border)] rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--surface-2)] transition-all"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)]"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
