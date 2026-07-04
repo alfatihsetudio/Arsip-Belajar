@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -47,11 +48,12 @@ function SettingsRow({ label, sub, children }: { label: string; sub?: string; ch
   );
 }
 
-function StyledSelect({ value, onChange, options, disabled }: {
+function StyledSelect({ value, onChange, options, disabled, fullWidth = false }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string; disabled?: boolean }[];
   disabled?: boolean;
+  fullWidth?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -71,17 +73,19 @@ function StyledSelect({ value, onChange, options, disabled }: {
   const activeOption = options.find(o => o.value === value) || options[0];
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={`relative ${fullWidth ? 'w-full' : ''}`} ref={dropdownRef}>
       <button
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 focus:outline-none focus:border-[var(--accent)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 justify-between min-w-[120px]"
+        className={`bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-[var(--accent)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 justify-between ${
+          fullWidth ? 'w-full' : 'min-w-[140px]'
+        }`}
       >
         <span>{activeOption?.label}</span>
         <svg
-          width="12"
-          height="12"
+          width="14"
+          height="14"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -95,7 +99,9 @@ function StyledSelect({ value, onChange, options, disabled }: {
       </button>
 
       {isOpen && !disabled && (
-        <div className="absolute right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1.5 w-44 animate-fadeIn">
+        <div className={`absolute mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1.5 animate-fadeIn ${
+          fullWidth ? 'left-0 right-0' : 'right-0 w-48'
+        }`}>
           {options.map(o => (
             <button
               key={o.value}
@@ -105,7 +111,7 @@ function StyledSelect({ value, onChange, options, disabled }: {
                 onChange(o.value);
                 setIsOpen(false);
               }}
-              className={`w-full text-left px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-2)] ${
+              className={`w-full text-left px-4 py-2 text-sm font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-2)] ${
                 value === o.value ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'
               }`}
             >
@@ -168,60 +174,115 @@ function DeleteAccountModal({ onClose, onConfirm }: { onClose: () => void; onCon
 // ─── About Owner Modal ────────────────────────────────────────────────────────
 
 function AboutOwnerModal({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
-      <div className="relative bg-[var(--surface)] border border-[var(--border)] w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-fadeIn z-50 space-y-5">
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    // Prevent body scroll while modal is open
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <>
+      {/* Overlay rendered via portal directly on document.body — bypasses ALL parent stacking contexts */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 99998,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+        }}
+      />
+
+      {/* Modal card */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          pointerEvents: 'none',
+        }}
+      >
+        <div
+          className="relative w-full max-w-sm rounded-2xl shadow-2xl animate-fadeIn overflow-y-auto"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            pointerEvents: 'auto',
+            maxHeight: 'calc(100vh - 32px)',
+          }}
+        >
         {/* Close button */}
-        <button onClick={onClose} className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer transition-colors">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-
-        {/* Avatar + name */}
-        <div className="flex flex-col items-center text-center gap-3">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-purple-500 flex items-center justify-center text-white text-3xl font-extrabold shadow-lg select-none">
-            A
-          </div>
-          <div>
-            <h3 className="text-base font-extrabold text-[var(--text-primary)]">Alfatih</h3>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">Pembuat Arsip Belajar</p>
-          </div>
-        </div>
-
-        {/* Bio */}
-        <p className="text-xs text-[var(--text-secondary)] leading-relaxed text-center">
-          Mahasiswa yang gemar memadukan teknologi AI dengan alat produktivitas. Arsip Belajar
-          awalnya dikembangkan dari pengalaman pribadi untuk menyusun dan merangkum materi
-          perkuliahan, dan kini diwujudkan untuk membantu pelajar serta mahasiswa lain mengelola
-          catatan dengan lebih rapi, cerdas, dan efisien.
-        </p>
-
-        {/* Facts */}
-        <div className="space-y-2">
-          {[
-            { icon: '🎓', label: 'STATUS', value: 'Mahasiswa / Telkom University' },
-            { icon: '🛠️', label: 'STACK', value: 'Next.js, Supabase, Gemini AI' },
-            { icon: '📍', label: 'LOKASI', value: 'Bandung, Indonesia' },
-            { icon: '📸', label: 'INSTAGRAM', value: '@rg_alfatih' },
-          ].map(item => (
-            <div key={item.label} className="flex items-center gap-3 px-3 py-2.5 bg-[var(--surface-2)] rounded-xl border border-[var(--border)]">
-              <span className="text-base flex-shrink-0">{item.icon}</span>
-              <div className="min-w-0">
-                <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest">{item.label}</p>
-                <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5">{item.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
         <button
           onClick={onClose}
-          className="w-full py-2 border border-[var(--border)] rounded-xl text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+          className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] cursor-pointer transition-all"
         >
-          Tutup
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
+
+        <div className="p-6 space-y-5">
+          {/* Avatar + name */}
+          <div className="flex flex-col items-center text-center gap-3">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400 flex items-center justify-center text-white text-3xl font-extrabold shadow-lg select-none">
+              A
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>Alfatih</h3>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Pembuat Arsip Belajar</p>
+            </div>
+          </div>
+
+          {/* Bio */}
+          <p className="text-xs leading-relaxed text-center" style={{ color: 'var(--text-secondary)' }}>
+            Mahasiswa yang gemar memadukan teknologi AI dengan alat produktivitas. Arsip Belajar
+            awalnya dikembangkan dari pengalaman pribadi untuk menyusun dan merangkum materi
+            perkuliahan, dan kini diwujudkan untuk membantu pelajar serta mahasiswa lain mengelola
+            catatan dengan lebih rapi, cerdas, dan efisien.
+          </p>
+
+          {/* Facts */}
+          <div className="space-y-2">
+            {[
+              { icon: '🎓', label: 'STATUS', value: 'Mahasiswa / Telkom University' },
+              { icon: '🛠️', label: 'STACK', value: 'Next.js, Supabase, Gemini AI' },
+              { icon: '📍', label: 'LOKASI', value: 'Bandung, Indonesia' },
+              { icon: '📸', label: 'INSTAGRAM', value: '@rg_alfatih' },
+            ].map(item => (
+              <div
+                key={item.label}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+              >
+                <span className="text-base flex-shrink-0">{item.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
+                  <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-2)' }}
+          >
+            Tutup
+          </button>
+        </div>
+        </div>
       </div>
-    </div>
+    </>,
+    document.body
   );
 }
 
@@ -436,6 +497,7 @@ export default function SettingsClient({ user, stats }: SettingsClientProps) {
             <StyledSelect
               value={eduLevel}
               onChange={setEduLevel}
+              fullWidth={true}
               options={[
                 { value: '', label: '— Pilih jenjang —' },
                 { value: 'SMP', label: 'SMP / MTs' },

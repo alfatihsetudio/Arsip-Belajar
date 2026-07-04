@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 export const maxDuration = 60;
 
@@ -57,6 +57,29 @@ export async function POST(req: NextRequest) {
       model: 'gemini-flash-lite-latest',
       generationConfig: {
         responseMimeType: 'application/json',
+        maxOutputTokens: 8192,
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            topicSummary: { type: SchemaType.STRING, description: "A very brief 2-5 words title summarizing the overall topics of this exam." },
+            questions: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  question: { type: SchemaType.STRING },
+                  options: {
+                    type: SchemaType.ARRAY,
+                    items: { type: SchemaType.STRING }
+                  },
+                  answer: { type: SchemaType.STRING }
+                },
+                required: ["question", "options", "answer"]
+              }
+            }
+          },
+          required: ["topicSummary", "questions"]
+        }
       }
     });
 
@@ -76,6 +99,7 @@ ${combinedNotesText}
 
 OUTPUT FORMAT (strict JSON only, no markdown wrappers, no explanation):
 {
+  "topicSummary": "...",
   "questions": [
     {
       "question": "...",
@@ -107,7 +131,10 @@ Rules:
     const parsed = JSON.parse(sanitizedJson);
     if (!parsed.questions || !Array.isArray(parsed.questions)) throw new Error('Invalid questions format');
 
-    return NextResponse.json({ questions: parsed.questions });
+    return NextResponse.json({ 
+      topicSummary: parsed.topicSummary || 'Beragam Materi',
+      questions: parsed.questions 
+    });
   } catch (error: any) {
     console.error('Exam API error:', error);
     return NextResponse.json({ error: error.message || 'Failed to generate exam' }, { status: 500 });

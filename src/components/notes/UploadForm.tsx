@@ -27,10 +27,12 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState('');
+  const [isAutoTitle, setIsAutoTitle] = useState(false);
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const folderDropdownRef = useRef<HTMLDivElement>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   // Close folder dropdown on click outside
@@ -144,7 +146,7 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
 
   const handleSubmit = async () => {
     if (images.length === 0) return setError('Please add at least one image.');
-    if (!title.trim()) return setError('Please enter a title for your note.');
+    if (!isAutoTitle && !title.trim()) return setError('Please enter a title for your note.');
 
     setIsProcessing(true);
     setError(null);
@@ -200,13 +202,34 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
 
       {/* Title */}
       <div className="mb-5">
-        <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">Note Title</label>
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="e.g. Algebra – Chapter 3"
-          className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-[var(--accent)] transition-colors"
-        />
+        <div className="flex justify-between items-end mb-1.5">
+          <label className="block text-sm font-medium text-[var(--text-primary)]">Note Title</label>
+          <button
+            type="button"
+            onClick={() => {
+              setIsAutoTitle(!isAutoTitle);
+              if (isAutoTitle) setTitle('');
+            }}
+            className="text-[11px] font-medium flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors border border-[var(--border)] hover:bg-[var(--surface-2)] text-indigo-400"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            {isAutoTitle ? 'Ketik Manual' : 'Buat Otomatis'}
+          </button>
+        </div>
+        
+        {isAutoTitle ? (
+          <div className="w-full px-4 py-3 bg-indigo-500/5 border border-indigo-500/20 rounded-xl text-sm text-indigo-400 flex items-center gap-2 cursor-not-allowed">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            <span className="font-medium">AI akan membuatkan judul secara otomatis</span>
+          </div>
+        ) : (
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="e.g. Algebra – Chapter 3"
+            className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-[var(--accent)] transition-colors"
+          />
+        )}
       </div>
 
       {/* Folder Selection */}
@@ -276,18 +299,32 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
         <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
           Images <span className="text-[var(--text-muted)] font-normal">(upload in order, from first to last)</span>
         </label>
-        <input type="file" accept="image/*" capture="environment" multiple ref={fileInputRef} onChange={e => e.target.files && addImages(e.target.files)} className="hidden" />
+        <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} onChange={e => e.target.files && addImages(e.target.files)} className="hidden" />
+        <input type="file" accept="image/*" multiple ref={galleryInputRef} onChange={e => e.target.files && addImages(e.target.files)} className="hidden" />
 
         {images.length === 0 ? (
-          <div
-            onDrop={handleDrop}
-            onDragOver={e => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-[var(--border)] rounded-2xl p-8 text-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors w-full"
-          >
-            <svg className="mx-auto text-[var(--text-muted)] mb-3" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <p className="text-sm font-medium text-[var(--text-secondary)]">Seret atau muat foto. Frame ini menyesuaikan ukuran foto Anda (Potret, Lanskap, Kotak)</p>
-            <p className="text-xs text-[var(--text-muted)] mt-1">JPG, PNG, WEBP — Multiple files supported</p>
+          <div className="grid grid-cols-2 gap-3 w-full">
+            <div
+              onClick={() => cameraInputRef.current?.click()}
+              className="border-2 border-[var(--border)] bg-[var(--surface)] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 transition-colors shadow-sm"
+            >
+              <div className="w-12 h-12 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full flex items-center justify-center mb-3">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              </div>
+              <span className="text-sm font-semibold text-[var(--text-primary)]">Buka Kamera</span>
+              <span className="text-[10px] text-[var(--text-muted)] mt-1 text-center">Foto langsung</span>
+            </div>
+            
+            <div
+              onClick={() => galleryInputRef.current?.click()}
+              className="border-2 border-[var(--border)] bg-[var(--surface)] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 transition-colors shadow-sm"
+            >
+              <div className="w-12 h-12 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full flex items-center justify-center mb-3">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              </div>
+              <span className="text-sm font-semibold text-[var(--text-primary)]">Pilih Galeri</span>
+              <span className="text-[10px] text-[var(--text-muted)] mt-1 text-center">Upload file (Bisa banyak)</span>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-6 mb-6 w-full">
@@ -306,12 +343,21 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
             ))}
             
             {/* Add more button */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-[var(--border)] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
-            >
-              <svg className="text-[var(--text-muted)] mb-2" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span className="text-sm text-[var(--text-secondary)] font-medium">Tambah Foto Lainnya</span>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <div
+                onClick={() => cameraInputRef.current?.click()}
+                className="border-2 border-dashed border-[var(--border)] rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                <svg className="text-[var(--text-muted)] mb-1" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                <span className="text-[11px] text-[var(--text-secondary)] font-medium">Tambah Kamera</span>
+              </div>
+              <div
+                onClick={() => galleryInputRef.current?.click()}
+                className="border-2 border-dashed border-[var(--border)] rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                <svg className="text-[var(--text-muted)] mb-1" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                <span className="text-[11px] text-[var(--text-secondary)] font-medium">Tambah Galeri</span>
+              </div>
             </div>
           </div>
         )}

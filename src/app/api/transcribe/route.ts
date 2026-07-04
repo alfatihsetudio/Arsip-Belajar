@@ -35,9 +35,6 @@ export async function POST(req: NextRequest) {
     if (!imageFiles || imageFiles.length === 0) {
       return NextResponse.json({ error: 'No images provided' }, { status: 400 });
     }
-    if (!title?.trim()) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
-    }
 
     // 1. Upload all images to Supabase Storage
     const uploadedUrls: { url: string; order: number }[] = [];
@@ -98,15 +95,30 @@ CRITICAL RULES:
     const result = await model.generateContent([prompt, ...imageParts]);
     const transcribedText = result.response.text();
 
-    // AI Smart Tagging generation
+    // AI Smart Tagging and Title generation
     let aiTags: string[] = [];
+    let finalTitle = title?.trim();
+    
     try {
       const tagPrompt = `Analyze this educational note and suggest 1 to 3 single-word tags (lowercase, simple, e.g. "grammar", "math", "physics", "indonesia") that represent its subjects. 
       Output strictly as a valid JSON string array (e.g. ["grammar", "english"]). Do not wrap in markdown, do not write explanations.
       
       Note:
       ${transcribedText}`;
-      const tagResult = await model.generateContent(tagPrompt);
+      
+      // If title is missing, ask for a title as well!
+      // But since they have different formats, it's easier to run a parallel prompt for the title.
+      const tagPromise = model.generateContent(tagPrompt);
+      const titlePromise = !finalTitle 
+        ? model.generateContent(`Based on the following transcription of an educational note, generate a very short, clear, and descriptive title (1-4 words). Output ONLY the raw title text, nothing else, no quotes, no markdown. Transcription: ${transcribedText}`)
+        : Promise.resolve(null);
+      
+      const [tagResult, titleResult] = await Promise.all([tagPromise, titlePromise]);
+      
+      if (titleResult) {
+        finalTitle = titleResult.response.text().trim();
+      }
+      
       const tagResultText = tagResult.response.text().trim();
       let cleanedTagJson = tagResultText;
       if (cleanedTagJson.startsWith('```')) {
@@ -114,7 +126,11 @@ CRITICAL RULES:
       }
       aiTags = JSON.parse(cleanedTagJson);
     } catch (tagErr) {
-      console.error('Failed to generate AI tags:', tagErr);
+      console.error('Failed to generate AI tags or title:', tagErr);
+    }
+    
+    if (!finalTitle) {
+      finalTitle = `Note ${new Date().toLocaleDateString()}`;
     }
 
     // 3. Save note to database
@@ -122,7 +138,7 @@ CRITICAL RULES:
       .from('notes')
       .insert({ 
         user_id: user.id, 
-        title: title.trim(), 
+        title: finalTitle, 
         transcribed_text: transcribedText,
         folder_id: folderId,
         image_url: uploadedUrls[0]?.url || null

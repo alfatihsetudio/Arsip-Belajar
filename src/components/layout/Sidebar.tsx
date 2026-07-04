@@ -159,6 +159,31 @@ export default function Sidebar({ user }: { user: User }) {
     };
   }, []);
 
+  const [isNoteFolderDropdownOpen, setIsNoteFolderDropdownOpen] = useState(false);
+  const noteFolderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Click outside for note folder dropdown
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (noteFolderDropdownRef.current && !noteFolderDropdownRef.current.contains(e.target as Node)) {
+        setIsNoteFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const getSelectedNoteFolderName = () => {
+    if (!noteFolderId) return 'Tanpa Folder (Root)';
+    const folder = folders.find(f => f.id === noteFolderId);
+    if (!folder) return 'Tanpa Folder (Root)';
+    let displayName = folder.name;
+    if (displayName && displayName.startsWith('{')) {
+      try { displayName = JSON.parse(displayName).name; } catch(e) {}
+    }
+    return displayName;
+  };
+
   const handleAddImages = (files: FileList | File[]) => {
     const newImages = Array.from(files).map(file => ({
       id: `${file.name}-${Date.now()}-${Math.random()}`,
@@ -496,25 +521,69 @@ export default function Sidebar({ user }: { user: User }) {
                 />
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1" ref={noteFolderDropdownRef}>
                 <label className="text-[11px] font-bold text-[var(--text-secondary)]">Folder</label>
-                <select
-                  value={noteFolderId}
-                  onChange={(e) => setNoteFolderId(e.target.value)}
-                  disabled={noteProcessing}
-                  className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-all cursor-pointer"
-                >
-                  <option value="">Tanpa Folder (Root)</option>
-                  {folders.map((f) => {
-                    let displayName = f.name;
-                    if (f.name && f.name.startsWith('{')) {
-                      try { displayName = JSON.parse(f.name).name; } catch(e) {}
-                    }
-                    return (
-                      <option key={f.id} value={f.id}>{displayName}</option>
-                    );
-                  })}
-                </select>
+                <div className="relative">
+                  <button
+                    type="button"
+                    disabled={noteProcessing}
+                    onClick={() => setIsNoteFolderDropdownOpen(!isNoteFolderDropdownOpen)}
+                    className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] hover:border-[var(--text-muted)] transition-colors flex items-center justify-between cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span>{getSelectedNoteFolderName()}</span>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`text-[var(--text-secondary)] transition-transform duration-200 ${isNoteFolderDropdownOpen ? 'rotate-180' : ''}`}
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+
+                  {isNoteFolderDropdownOpen && !noteProcessing && (
+                    <div className="absolute left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1.5 max-h-40 overflow-y-auto animate-fadeIn">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNoteFolderId('');
+                          setIsNoteFolderDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer hover:bg-[var(--surface-2)] ${
+                          !noteFolderId ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'
+                        }`}
+                      >
+                        Tanpa Folder (Root)
+                      </button>
+                      {folders.map(f => {
+                        let displayName = f.name;
+                        if (f.name && f.name.startsWith('{')) {
+                          try { displayName = JSON.parse(f.name).name; } catch(e) {}
+                        }
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => {
+                              setNoteFolderId(f.id);
+                              setIsNoteFolderDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer hover:bg-[var(--surface-2)] ${
+                              noteFolderId === f.id ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'
+                            }`}
+                          >
+                            {displayName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {noteImages.length === 0 && (

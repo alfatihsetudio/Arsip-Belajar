@@ -136,7 +136,11 @@ export default function SharedItemsList({
     return result;
   }, [initialNotes, filterType, filterDate, sortBy, searchQuery]);
 
-  const hasAnyMatch = filteredFolders.length > 0 || filteredNotes.length > 0;
+  // Separate AI chats from regular notes
+  const filteredAiChats = filteredNotes.filter((n: any) => n.title?.startsWith('💬'));
+  const filteredRegularNotes = filteredNotes.filter((n: any) => !n.title?.startsWith('💬'));
+
+  const hasAnyMatch = filteredFolders.length > 0 || filteredRegularNotes.length > 0 || filteredAiChats.length > 0;
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -305,14 +309,79 @@ export default function SharedItemsList({
             </div>
           )}
 
-          {/* Notes Section */}
-          {filteredNotes.length > 0 && (
+          {/* AI Chats Section */}
+          {filteredAiChats.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
-                <span>📝</span> Catatan ({filteredNotes.length})
+                <span>💬</span> Obrolan AI ({filteredAiChats.length})
+              </h2>
+              <div className="flex flex-col gap-2">
+                {filteredAiChats.map((item) => {
+                  const owner = ownerMap[item.user_id];
+                  const ownerName = owner?.name || `${item.user_id?.slice(0, 8)}…`;
+                  const ownerAvatar = owner?.avatar || '';
+                  const chatTitle = item.title.replace(/^💬\s*Riwayat Obrolan:\s*/i, '').trim();
+
+                  // Count messages
+                  const msgCount = item.transcribed_text
+                    ? (item.transcribed_text.match(/###\s*🙋|###\s*🤖/g) || []).length
+                    : 0;
+
+                  return (
+                    <Link
+                      key={`chat-${item.id}`}
+                      href={`/note/${item.id}`}
+                      className="group bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 hover:border-indigo-500/40 hover:shadow-md transition-all flex items-center gap-4"
+                    >
+                      {/* Icon */}
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:from-indigo-500/30 group-hover:to-purple-500/30 transition-all">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate">{chatTitle || 'Obrolan AI'}</h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-[var(--text-muted)]">{msgCount} pesan</span>
+                          <span className="text-[var(--border)]">·</span>
+                          <div className="flex items-center gap-1 min-w-0">
+                            {ownerAvatar ? (
+                              <img src={ownerAvatar} alt="" className="w-3 h-3 rounded-full flex-shrink-0" />
+                            ) : (
+                              <div className="w-3 h-3 rounded-full bg-indigo-500/20 flex items-center justify-center text-[6px] font-bold flex-shrink-0 text-indigo-400">
+                                {ownerName[0]?.toUpperCase() || '?'}
+                              </div>
+                            )}
+                            <span className="text-[10px] text-[var(--text-muted)] truncate">{ownerName}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Date + badge */}
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400">Obrolan AI</span>
+                        <span className="text-[9px] text-[var(--text-muted)]">{formatDate(item.created_at).split(',')[1]?.trim() || ''}</span>
+                      </div>
+
+                      {/* Arrow */}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)] flex-shrink-0">
+                        <path d="m9 18 6-6-6-6"/>
+                      </svg>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Notes Section */}
+          {filteredRegularNotes.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
+                <span>📝</span> Catatan ({filteredRegularNotes.length})
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {filteredNotes.map((item) => {
+                {filteredRegularNotes.map((item) => {
                   const owner = ownerMap[item.user_id];
                   const ownerName = owner?.name || `${item.user_id?.slice(0, 8)}…`;
                   const ownerAvatar = owner?.avatar || '';

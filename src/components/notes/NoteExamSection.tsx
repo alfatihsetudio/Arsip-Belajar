@@ -147,7 +147,7 @@ export default function NoteExamSection({ noteId, isGuest = false, isOwner = tru
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setIsHeaderCountOpen(false)} />
                     <div className="absolute right-0 mt-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg z-40 py-1 text-[10px] w-20 overflow-hidden">
-                      {[3, 5, 10].map((num) => (
+                      {[5, 10, 30].map((num) => (
                         <button
                           key={num}
                           type="button"
@@ -248,7 +248,7 @@ export default function NoteExamSection({ noteId, isGuest = false, isOwner = tru
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setIsCountOpen(false)} />
                     <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-40 py-1 text-xs animate-fadeIn overflow-hidden">
-                      {[3, 5, 10, 15].map((num) => (
+                      {[5, 10, 30].map((num) => (
                         <button
                           key={num}
                           type="button"
@@ -293,16 +293,21 @@ export default function NoteExamSection({ noteId, isGuest = false, isOwner = tru
                 {q.options.map((opt) => {
                   const isChecked = answers[i] === opt;
                   return (
-                    <label key={opt} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all ${
-                      isChecked ? 'border-[var(--accent)] bg-[var(--surface-2)] font-semibold' : 'border-[var(--border)] hover:bg-[var(--surface-2)]'
-                    }`}>
+                    <label 
+                      key={opt} 
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-all ${
+                        isChecked 
+                          ? 'bg-[var(--surface-2)] ring-2 ring-[var(--text-primary)] font-bold shadow-sm' 
+                          : 'bg-[var(--surface)] ring-1 ring-[var(--border)] hover:bg-[var(--surface-2)]'
+                      }`}
+                    >
                       <input 
                         type="radio" 
                         name={`inline-q-${i}`} 
                         value={opt} 
                         checked={isChecked}
                         onChange={() => setAnswers(prev => ({ ...prev, [i]: opt }))} 
-                        className="accent-[var(--accent)] w-3.5 h-3.5" 
+                        className="accent-[var(--text-primary)] w-3.5 h-3.5" 
                       />
                       <span className="text-xs text-[var(--text-primary)] leading-normal">{opt}</span>
                     </label>
@@ -325,8 +330,8 @@ export default function NoteExamSection({ noteId, isGuest = false, isOwner = tru
       {questions.length > 0 && submitted && (
         <div className="space-y-4 animate-fadeIn">
           {/* Score Header */}
-          <div className={`p-4 rounded-xl text-center border ${pct >= 70 ? 'bg-green-50/50 border-green-200' : 'bg-red-50/50 border-red-200'}`}>
-            <p className={`text-3xl font-black ${pct >= 70 ? 'text-green-600' : 'text-red-500'}`}>{pct}%</p>
+          <div className={`p-4 rounded-xl text-center border ${pct >= 70 ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50' : 'bg-red-50/50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50'}`}>
+            <p className={`text-3xl font-black ${pct >= 70 ? 'text-green-600 dark:text-green-500' : 'text-red-500 dark:text-red-400'}`}>{pct}%</p>
             <p className="text-[11px] font-bold mt-1 text-[var(--text-primary)]">{score} / {questions.length} Benar</p>
             <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{pct >= 70 ? 'Luar biasa! 🎉' : 'Ayo coba belajar lagi! 💪'}</p>
           </div>
@@ -336,13 +341,13 @@ export default function NoteExamSection({ noteId, isGuest = false, isOwner = tru
             {questions.map((q, i) => {
               const isCorrect = answers[i] === q.answer;
               return (
-                <div key={i} className={`p-3 rounded-xl border text-xs ${isCorrect ? 'border-green-100 bg-green-50/20' : 'border-red-100 bg-red-50/20'}`}>
+                <div key={i} className={`p-3 rounded-xl border text-xs ${isCorrect ? 'border-green-100 dark:border-green-800/50 bg-green-50/20 dark:bg-green-900/10' : 'border-red-100 dark:border-red-800/50 bg-red-50/20 dark:bg-red-900/10'}`}>
                   <p className="font-bold text-[var(--text-primary)]">{i + 1}. {q.question}</p>
                   <p className="text-[11px] text-[var(--text-secondary)] mt-1.5">
-                    Jawaban Anda: <span className={isCorrect ? 'text-green-700 font-bold' : 'text-red-500 line-through'}>{answers[i] || '(kosong)'}</span>
+                    Jawaban Anda: <span className={isCorrect ? 'text-green-700 dark:text-green-400 font-bold' : 'text-red-500 dark:text-red-400 line-through'}>{answers[i] || '(kosong)'}</span>
                   </p>
                   {!isCorrect && (
-                    <p className="text-[11px] text-green-700 font-bold mt-0.5">Kunci Jawaban: {q.answer}</p>
+                    <p className="text-[11px] text-green-700 dark:text-green-400 font-bold mt-0.5">Kunci Jawaban: {q.answer}</p>
                   )}
                 </div>
               );

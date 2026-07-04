@@ -1,0 +1,4 @@
+ALTER TABLE exam_results 
+ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN topics TEXT NOT NULL DEFAULT 'Beragam',
+ADD COLUMN correct_answers INTEGER NOT NULL DEFAULT 0;
