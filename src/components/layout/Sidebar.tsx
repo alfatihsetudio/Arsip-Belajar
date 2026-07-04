@@ -134,9 +134,11 @@ export default function Sidebar({ user }: { user: User }) {
   const [noteProgress, setNoteProgress] = useState('');
   const [folders, setFolders] = useState<any[]>([]);
   const [isNoteAutoTitle, setIsNoteAutoTitle] = useState(false);
+  const [noteAudioFile, setNoteAudioFile] = useState<File | null>(null);
   const noteFileInputRef = useRef<HTMLInputElement>(null);
   const noteCameraInputRef = useRef<HTMLInputElement>(null);
   const noteGalleryInputRef = useRef<HTMLInputElement>(null);
+  const noteAudioInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch folders for note modal selection
   useEffect(() => {
@@ -206,7 +208,7 @@ export default function Sidebar({ user }: { user: User }) {
 
   const handleCreateNoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (noteImages.length === 0) return setNoteError('Harap tambahkan minimal satu gambar catatan.');
+    if (noteImages.length === 0 && !noteAudioFile) return setNoteError('Harap tambahkan minimal satu gambar atau file audio.');
     if (!isNoteAutoTitle && !noteTitle.trim()) return setNoteError('Harap masukkan judul catatan.');
 
     setNoteProcessing(true);
@@ -217,10 +219,16 @@ export default function Sidebar({ user }: { user: User }) {
     formData.append('title', noteTitle.trim());
     if (noteFolderId) formData.append('folder_id', noteFolderId);
     
-    noteImages.forEach((img, i) => {
-      formData.append('images', img.file);
-      formData.append(`order_${i}`, String(i));
-    });
+    if (noteImages.length > 0) {
+      noteImages.forEach((img, i) => {
+        formData.append('images', img.file);
+        formData.append(`order_${i}`, String(i));
+      });
+    }
+
+    if (noteAudioFile) {
+      formData.append('audio', noteAudioFile);
+    }
 
     try {
       setNoteProgress('Memproses teks dengan AI...');
@@ -231,6 +239,7 @@ export default function Sidebar({ user }: { user: User }) {
       setNoteTitle('');
       setNoteFolderId('');
       setNoteImages([]);
+      setNoteAudioFile(null);
       setIsNoteAutoTitle(false);
       setShowNoteModal(false);
       
@@ -675,24 +684,59 @@ export default function Sidebar({ user }: { user: User }) {
                 </div>
               )}
 
-              {/* Premium Audio Section (Locked) */}
-              <div className="p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-left flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">Unggah Rekaman Suara</p>
-                      <p className="text-[9px] text-[var(--text-muted)] truncate max-w-[150px]">Transkripsi rekaman otomatis</p>
+              {/* Audio Upload */}
+              <div className="flex flex-col gap-1 pt-1">
+                <label className="text-[11px] font-bold text-[var(--text-secondary)]">Atau Unggah Audio</label>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  ref={noteAudioInputRef}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setNoteAudioFile(e.target.files[0]);
+                      setNoteImages([]);
+                    }
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  disabled={noteProcessing}
+                />
+                
+                {!noteAudioFile ? (
+                  <div
+                    onClick={() => !noteProcessing && noteAudioInputRef.current?.click()}
+                    className="border border-dashed border-[var(--border)] rounded-xl p-3 flex items-center justify-between cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-[var(--text-primary)]">Pilih Audio Rekaman</p>
+                        <p className="text-[9px] text-[var(--text-muted)]">Otomatis transkrip</p>
+                      </div>
                     </div>
                   </div>
-                  <span className="text-[8px] font-bold bg-amber-150 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0">PREMIUM</span>
-                </div>
-                <button disabled className="w-full py-1.5 rounded-xl border border-dashed border-amber-300 text-[9px] font-bold text-amber-600 bg-amber-50/50 cursor-not-allowed opacity-70 flex items-center justify-center gap-1">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  Upgrade untuk Buka Audio
-                </button>
+                ) : (
+                  <div className="border border-amber-300 bg-amber-50 rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-amber-900 truncate pr-2">{noteAudioFile.name}</p>
+                        <p className="text-[9px] text-amber-700">Audio terpilih</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNoteAudioFile(null)}
+                      className="p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex-shrink-0"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {noteError && (
@@ -713,7 +757,7 @@ export default function Sidebar({ user }: { user: User }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={noteProcessing || noteImages.length === 0}
+                  disabled={noteProcessing || (noteImages.length === 0 && !noteAudioFile)}
                   className="flex-1 py-2 bg-[var(--accent)] text-[var(--accent-fg)] rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   {noteProcessing ? (

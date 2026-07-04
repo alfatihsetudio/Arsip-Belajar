@@ -22,6 +22,7 @@ interface UploadFormProps {
 
 export default function UploadForm({ folders, initialFolderId }: UploadFormProps) {
   const [images, setImages] = useState<ImageFile[]>([]);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [folderId, setFolderId] = useState(initialFolderId);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,6 +34,7 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   // Close folder dropdown on click outside
@@ -145,7 +147,7 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
   };
 
   const handleSubmit = async () => {
-    if (images.length === 0) return setError('Please add at least one image.');
+    if (images.length === 0 && !audioFile) return setError('Please add at least one image or audio file.');
     if (!isAutoTitle && !title.trim()) return setError('Please enter a title for your note.');
 
     setIsProcessing(true);
@@ -157,15 +159,21 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
         images.map(img => compressImage(img.file))
       );
 
-      setProgress('Uploading images...');
+      setProgress('Uploading files...');
       const formData = new FormData();
       formData.append('title', title.trim());
       if (folderId) formData.append('folder_id', folderId);
       
-      compressedFiles.forEach((file, i) => {
-        formData.append('images', file);
-        formData.append(`order_${i}`, String(i));
-      });
+      if (images.length > 0) {
+        compressedFiles.forEach((file, i) => {
+          formData.append('images', file);
+          formData.append(`order_${i}`, String(i));
+        });
+      }
+
+      if (audioFile) {
+        formData.append('audio', audioFile);
+      }
 
       setProgress('Processing with AI...');
       const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
@@ -363,24 +371,56 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
         )}
       </div>
 
-      {/* Premium Audio Button (Locked) */}
-      <div className="mb-6 p-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      {/* Audio Upload */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
+          Atau Unggah Audio (Rekaman / Suara)
+        </label>
+        <input 
+          type="file" 
+          accept="audio/*" 
+          ref={audioInputRef} 
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              setAudioFile(e.target.files[0]);
+              setImages([]); // If user picks audio, clear images to keep it simple
+            }
+            e.target.value = '';
+          }} 
+          className="hidden" 
+        />
+        
+        {!audioFile ? (
+          <div 
+            onClick={() => audioInputRef.current?.click()}
+            className="w-full py-4 border-2 border-dashed border-[var(--border)] rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-colors"
+          >
+            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-[var(--text-primary)]">Upload Audio Recording</p>
-              <p className="text-xs text-[var(--text-muted)]">Transcribe lectures and recordings automatically</p>
-            </div>
+            <span className="text-sm font-semibold text-[var(--text-primary)]">Pilih File Audio</span>
+            <span className="text-[10px] text-[var(--text-muted)] mt-1">Otomatis transkrip rekaman suara</span>
           </div>
-          <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full flex-shrink-0">PREMIUM</span>
-        </div>
-        <button disabled className="mt-3 w-full py-2.5 rounded-xl border border-dashed border-amber-300 text-sm font-medium text-amber-600 bg-amber-50 cursor-not-allowed opacity-70 flex items-center justify-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          Upgrade to Unlock Audio Upload
-        </button>
+        ) : (
+          <div className="w-full p-4 border border-amber-300 bg-amber-50 rounded-2xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-amber-900 truncate pr-4">{audioFile.name}</p>
+                <p className="text-[10px] text-amber-700">Audio terpilih</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setAudioFile(null)}
+              className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex-shrink-0"
+              title="Hapus audio"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -390,10 +430,9 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
         </div>
       )}
 
-      {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={isProcessing || images.length === 0}
+        disabled={isProcessing || (images.length === 0 && !audioFile)}
         className="w-full py-3.5 bg-[var(--accent)] text-[var(--accent-fg)] rounded-xl font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {isProcessing ? (

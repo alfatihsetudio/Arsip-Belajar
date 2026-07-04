@@ -31,54 +31,103 @@ export async function POST(req: NextRequest) {
     }
       
     const imageFiles = formData.getAll('images') as File[];
+    const audioFile = formData.get('audio') as File | null;
 
-    if (!imageFiles || imageFiles.length === 0) {
-      return NextResponse.json({ error: 'No images provided' }, { status: 400 });
+    if ((!imageFiles || imageFiles.length === 0) && !audioFile) {
+      return NextResponse.json({ error: 'No images or audio provided' }, { status: 400 });
     }
 
-    // 1. Upload all images to Supabase Storage
-    const uploadedUrls: { url: string; order: number }[] = [];
+    // 1. Upload files to Supabase Storage
+    const uploadedUrls: { url: string; order: number; type: 'image' | 'audio' }[] = [];
 
-    for (let i = 0; i < imageFiles.length; i++) {
-      const file = imageFiles[i];
-      const arrayBuffer = await file.arrayBuffer();
+    if (imageFiles.length > 0) {
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const fileExt = file.name.split('.').pop() || 'jpg';
+        const fileName = `${user.id}/${Date.now()}-${i}.${fileExt}`;
+
+        const { error: storageError } = await supabase.storage
+          .from('media')
+          .upload(fileName, buffer, { contentType: file.type || 'image/jpeg' });
+
+        if (storageError) {
+          console.error('Storage error:', storageError);
+          return NextResponse.json({ error: `Failed to upload image ${i + 1}: ${storageError.message}` }, { status: 500 });
+        }
+
+        const { data: signedUrl } = await supabase.storage
+          .from('media')
+          .createSignedUrl(fileName, 60 * 60 * 24 * 365 * 10);
+
+        if (!signedUrl) return NextResponse.json({ error: 'Failed to generate signed URL' }, { status: 500 });
+        uploadedUrls.push({ url: signedUrl.signedUrl, order: i, type: 'image' });
+      }
+    }
+
+    if (audioFile) {
+      const arrayBuffer = await audioFile.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const fileExt = file.name.split('.').pop() || 'jpg';
-      const fileName = `${user.id}/${Date.now()}-${i}.${fileExt}`;
+      const fileExt = audioFile.name.split('.').pop() || 'mp3';
+      const fileName = `${user.id}/${Date.now()}-audio.${fileExt}`;
 
       const { error: storageError } = await supabase.storage
         .from('media')
-        .upload(fileName, buffer, { contentType: file.type || 'image/jpeg' });
+        .upload(fileName, buffer, { contentType: audioFile.type || 'audio/mpeg' });
 
       if (storageError) {
         console.error('Storage error:', storageError);
-        return NextResponse.json({ error: `Failed to upload image ${i + 1}: ${storageError.message}` }, { status: 500 });
+        return NextResponse.json({ error: `Failed to upload audio: ${storageError.message}` }, { status: 500 });
       }
 
       const { data: signedUrl } = await supabase.storage
         .from('media')
-        .createSignedUrl(fileName, 60 * 60 * 24 * 365 * 10); // 10 years
+        .createSignedUrl(fileName, 60 * 60 * 24 * 365 * 10);
 
       if (!signedUrl) return NextResponse.json({ error: 'Failed to generate signed URL' }, { status: 500 });
-      uploadedUrls.push({ url: signedUrl.signedUrl, order: i });
+      uploadedUrls.push({ url: signedUrl.signedUrl, order: 0, type: 'audio' });
     }
 
-    // 2. Process all images with Gemini (sequential OCR)
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    // 2. Process with Gemini
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
-    const imageParts = await Promise.all(
-      imageFiles.map(async (file) => {
-        const arrayBuffer = await file.arrayBuffer();
-        return {
-          inlineData: {
-            data: Buffer.from(arrayBuffer).toString('base64'),
-            mimeType: file.type || 'image/jpeg',
-          },
-        };
-      })
-    );
+    let mediaParts: { inlineData: { data: string; mimeType: string } }[] = [];
+    let prompt = '';
 
-    const prompt = `You are an expert educational notes transcriber. 
+    if (audioFile) {
+      const arrayBuffer = await audioFile.arrayBuffer();
+      mediaParts = [{
+        inlineData: {
+          data: Buffer.from(arrayBuffer).toString('base64'),
+          mimeType: audioFile.type || 'audio/mpeg',
+        }
+      }];
+      prompt = `You are an expert educational notes transcriber.
+Listen to the audio recording carefully and transcribe its contents. Do NOT transcribe strictly word-for-word if it's rambling, but extract and structure the educational content:
+1. Identify and write the MOST IMPORTANT concepts, main formulas, or core theories first.
+2. Follow up with sub-points, detailed explanations, examples, and secondary details.
+3. Organize everything into a beautiful, neat, and highly structured format.
+
+CRITICAL RULES: 
+- Output strictly in PLAIN TEXT. 
+- NEVER use Markdown symbols (do NOT use #, ##, ###, **, *, _, backticks, or markdown tables).
+- For headings, use UPPERCASE text on their own line.
+- For bullet points, use simple dashes (e.g. - text) without any bolding or symbols.
+- Do not lose any key educational points.`;
+    } else {
+      mediaParts = await Promise.all(
+        imageFiles.map(async (file) => {
+          const arrayBuffer = await file.arrayBuffer();
+          return {
+            inlineData: {
+              data: Buffer.from(arrayBuffer).toString('base64'),
+              mimeType: file.type || 'image/jpeg',
+            },
+          };
+        })
+      );
+      prompt = `You are an expert educational notes transcriber. 
 Understand the material from the whiteboard/images deeply. Do NOT transcribe strictly chronologically or spatially (e.g., left to right, top to bottom) if that doesn't make educational sense.
 Instead, understand the whiteboard content, analyze the topic, and write the notes structured by educational priority:
 1. Identify and write the MOST IMPORTANT concepts, main formulas, or core theories first.
@@ -91,8 +140,9 @@ CRITICAL RULES:
 - For headings, use UPPERCASE text on their own line.
 - For bullet points, use simple dashes (e.g. - text) without any bolding or symbols.
 - Do not lose any words or equations.`;
+    }
 
-    const result = await model.generateContent([prompt, ...imageParts]);
+    const result = await model.generateContent([prompt, ...mediaParts]);
     const transcribedText = result.response.text();
 
     // AI Smart Tagging and Title generation
@@ -152,10 +202,10 @@ CRITICAL RULES:
     }
 
     // 4. Save media records
-    const mediaInserts = uploadedUrls.map(({ url, order }) => ({
+    const mediaInserts = uploadedUrls.map(({ url, order, type }) => ({
       note_id: note.id,
       media_url: url,
-      media_type: 'image',
+      media_type: type,
       order_index: order,
     }));
 
