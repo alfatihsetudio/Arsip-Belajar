@@ -90,17 +90,24 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Process with Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
 
     let mediaParts: { inlineData: { data: string; mimeType: string } }[] = [];
     let prompt = '';
 
     if (audioFile) {
       const arrayBuffer = await audioFile.arrayBuffer();
+      let finalMimeType = audioFile.type || 'audio/mpeg';
+      if (finalMimeType.startsWith('video/')) {
+        finalMimeType = 'audio/mp4';
+      } else if (!finalMimeType.startsWith('audio/')) {
+        finalMimeType = 'audio/mpeg';
+      }
+      
       mediaParts = [{
         inlineData: {
           data: Buffer.from(arrayBuffer).toString('base64'),
-          mimeType: audioFile.type || 'audio/mpeg',
+          mimeType: finalMimeType,
         }
       }];
       prompt = `You are an expert educational notes transcriber.
