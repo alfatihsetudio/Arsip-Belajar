@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { showAlert } from '@/lib/utils/customDialog';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-export default function NoteChatAssistant({ noteId, isGuest = false }: { noteId: string; isGuest?: boolean }) {
+export default function NoteChatAssistant({ noteId, isGuest = false, isOwner = true }: { noteId: string; isGuest?: boolean; isOwner?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: 'Halo! Saya asisten belajarmu. Tanyakan apa saja mengenai materi catatan ini.' }
   ]);
@@ -30,6 +31,10 @@ export default function NoteChatAssistant({ noteId, isGuest = false }: { noteId:
   const handleSendMessage = async (textToSend: string) => {
     if (isGuest) {
       window.location.href = '/';
+      return;
+    }
+    if (!isOwner) {
+      showAlert('Silakan simpan catatan ini ke Catatan Saya terlebih dahulu untuk menggunakan fitur AI.');
       return;
     }
     if (!textToSend.trim() || loading) return;
@@ -135,6 +140,10 @@ export default function NoteChatAssistant({ noteId, isGuest = false }: { noteId:
             window.location.href = '/';
             return;
           }
+          if (!isOwner) {
+            showAlert('Silakan simpan catatan ini ke Catatan Saya terlebih dahulu untuk menggunakan fitur AI.');
+            return;
+          }
           handleSendMessage(input); 
         }}
         className="flex items-center gap-2 border-t border-[var(--border)] pt-2 flex-shrink-0"
@@ -145,6 +154,10 @@ export default function NoteChatAssistant({ noteId, isGuest = false }: { noteId:
           onClick={() => {
             if (isGuest) {
               window.location.href = '/';
+              return;
+            }
+            if (!isOwner) {
+              showAlert('Silakan simpan catatan ini ke Catatan Saya terlebih dahulu untuk menggunakan fitur AI.');
             }
           }}
           placeholder={isGuest ? "Masuk untuk bertanya..." : "Tanyakan materi..."}

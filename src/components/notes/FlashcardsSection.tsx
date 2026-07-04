@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flashcard } from '@/lib/utils/flashcardHelper';
+import { showAlert } from '@/lib/utils/customDialog';
 
 interface FlashcardsSectionProps {
   noteId: string;
   initialFlashcards: Flashcard[];
   isGuest?: boolean;
+  isOwner?: boolean;
 }
 
-export default function FlashcardsSection({ noteId, initialFlashcards, isGuest = false }: FlashcardsSectionProps) {
+export default function FlashcardsSection({ noteId, initialFlashcards, isGuest = false, isOwner = true }: FlashcardsSectionProps) {
   const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -21,6 +23,10 @@ export default function FlashcardsSection({ noteId, initialFlashcards, isGuest =
   const handleGenerate = async () => {
     if (isGuest) {
       window.location.href = '/';
+      return;
+    }
+    if (!isOwner) {
+      showAlert('Silakan simpan catatan ini ke Catatan Saya terlebih dahulu untuk menggunakan fitur AI.');
       return;
     }
     setGenerating(true);

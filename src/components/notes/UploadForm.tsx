@@ -52,27 +52,103 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
     if (e.dataTransfer.files.length > 0) addImages(e.dataTransfer.files);
   };
 
+  const compressImage = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(file);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1600;
+          const MAX_HEIGHT = 1600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            0.85
+          );
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleSubmit = async () => {
     if (images.length === 0) return setError('Please add at least one image.');
     if (!title.trim()) return setError('Please enter a title for your note.');
 
     setIsProcessing(true);
     setError(null);
-    setProgress('Uploading images...');
-
-    const formData = new FormData();
-    formData.append('title', title.trim());
-    if (folderId) formData.append('folder_id', folderId);
-    
-    images.forEach((img, i) => {
-      formData.append('images', img.file);
-      formData.append(`order_${i}`, String(i));
-    });
+    setProgress('Compressing images...');
 
     try {
+      const compressedFiles = await Promise.all(
+        images.map(img => compressImage(img.file))
+      );
+
+      setProgress('Uploading images...');
+      const formData = new FormData();
+      formData.append('title', title.trim());
+      if (folderId) formData.append('folder_id', folderId);
+      
+      compressedFiles.forEach((file, i) => {
+        formData.append('images', file);
+        formData.append(`order_${i}`, String(i));
+      });
+
       setProgress('Processing with AI...');
       const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
-      const data = await res.json();
+      
+      let data;
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || 'Failed to process note (Server error)');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to process note');
       
       router.push(`/dashboard/note/${data.noteId}`);

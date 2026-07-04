@@ -1,61 +1,43 @@
 import { createClient } from '@/lib/supabase/server';
+import SettingsClient from '@/components/settings/SettingsClient';
 
 export default async function SettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  if (!user) return <div>Silakan login.</div>;
+
+  // Fetch stats in parallel
+  const [{ count: noteCount }, { count: folderCount }, { data: mediaRows }] = await Promise.all([
+    supabase.from('notes').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabase.from('folders').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    // Estimate storage from note_media rows — each row linked to user's notes
+    supabase
+      .from('note_media')
+      .select('media_url, notes!inner(user_id)')
+      .eq('notes.user_id', user.id)
+      .limit(1000),
+  ]);
+
+  // Rough estimate: assume ~200KB average per image
+  const estimatedStorageMB = ((mediaRows?.length ?? 0) * 200) / 1024;
+
   return (
-    <div className="max-w-xl mx-auto animate-fadeIn">
-      <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-6">Settings</h1>
-
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl divide-y divide-[var(--border)]">
-        <div className="p-5">
-          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">Profile</p>
-          <div className="flex items-center gap-4">
-            {user?.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-12 h-12 rounded-full" />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-lg font-bold text-[var(--text-secondary)]">
-                {(user?.email || 'U')[0].toUpperCase()}
-              </div>
-            )}
-            <div>
-              <p className="font-semibold text-[var(--text-primary)]">{user?.user_metadata?.full_name || 'User'}</p>
-              <p className="text-sm text-[var(--text-muted)]">{user?.email}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5">
-          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">Account</p>
-          <div className="space-y-3 text-sm text-[var(--text-secondary)]">
-            <div className="flex items-center justify-between">
-              <span>Member since</span>
-              <span className="font-medium text-[var(--text-primary)]">
-                {user?.created_at ? new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long' }) : '—'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Auth provider</span>
-              <span className="font-medium text-[var(--text-primary)] capitalize">Google</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5">
-          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">App</p>
-          <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-            <div className="flex items-center justify-between">
-              <span>Version</span>
-              <span className="font-mono text-xs bg-[var(--surface-2)] px-2 py-0.5 rounded">2.0.0-beta</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>AI Engine</span>
-              <span className="font-mono text-xs bg-[var(--surface-2)] px-2 py-0.5 rounded">gemini-flash-lite</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <SettingsClient
+      user={{
+        id: user.id,
+        email: user.email ?? '',
+        full_name: user.user_metadata?.full_name ?? '',
+        avatar_url: user.user_metadata?.avatar_url ?? '',
+        created_at: user.created_at,
+        provider: user.app_metadata?.provider ?? 'google',
+        education_level: user.user_metadata?.education_level ?? '',
+      }}
+      stats={{
+        noteCount: noteCount ?? 0,
+        folderCount: folderCount ?? 0,
+        storageMB: estimatedStorageMB,
+      }}
+    />
   );
 }

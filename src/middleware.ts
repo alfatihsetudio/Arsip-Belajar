@@ -10,6 +10,7 @@ export const config = {
     '/',
     '/dashboard/:path*',
     '/note/:path*',
+    '/folder/:path*',
     '/upload/:path*',
     '/auth/:path*',
   ],

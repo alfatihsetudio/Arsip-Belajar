@@ -10,7 +10,7 @@ import NoteExamSection from '@/components/notes/NoteExamSection';
 import NoteLayoutWrapper from '@/components/notes/NoteLayoutWrapper';
 import { parseNoteContent } from '@/lib/utils/flashcardHelper';
 import type { Metadata } from 'next';
-import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site';
+import { SITE_DESCRIPTION, SITE_NAME, parseFolderInfo } from '@/lib/site';
 
 export async function generateMetadata({
   params,
@@ -60,7 +60,7 @@ export default async function PublicNoteDetailPage({
     .from('notes')
     .select(`
       *,
-      folders(id, visibility, allowed_emails),
+      folders(id, name, visibility, allowed_emails),
       note_media(id, media_url, order_index, media_type)
     `)
     .eq('id', id)
@@ -87,8 +87,8 @@ export default async function PublicNoteDetailPage({
     }
   }
 
-  // Guest users: redirect to login page so they can authenticate and return here
-  if (isGuest) {
+  // Guest users: redirect to login page only if private or restricted
+  if (isGuest && visibility !== 'public') {
     const returnUrl = `/note/${id}`;
     redirect(`/?next=${encodeURIComponent(returnUrl)}`);
   }
@@ -156,13 +156,26 @@ export default async function PublicNoteDetailPage({
       <header className="border-b border-[var(--border)] bg-[var(--surface)] sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-3 sm:px-4 h-12 flex items-center gap-2">
 
-          {/* Back to dashboard */}
+          {/* Back button */}
           <Link
-            href="/dashboard"
-            className="flex items-center gap-1 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+            href={
+              note.folders
+                ? (isOwner ? `/dashboard/folder/${note.folders.id}` : `/folder/${note.folders.id}`)
+                : '/dashboard'
+            }
+            className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-            Dashboard
+             {note.folders ? (
+              <span className="flex items-center gap-1 truncate max-w-[120px] sm:max-w-[200px]">
+                {(() => {
+                  const { displayName, emoji } = parseFolderInfo(note.folders.name);
+                  return `${emoji} ${displayName}`;
+                })()}
+              </span>
+            ) : (
+              'Dashboard'
+            )}
           </Link>
 
           {/* Divider */}
@@ -195,9 +208,11 @@ export default async function PublicNoteDetailPage({
 
           {/* Save / Duplicate button — compact */}
           {!isOwner && (
-            <Suspense fallback={null}>
-              <DuplicateButton noteId={note.id} />
-            </Suspense>
+            <div className="ml-auto flex-shrink-0">
+              <Suspense fallback={null}>
+                <DuplicateButton noteId={note.id} isGuest={isGuest} />
+              </Suspense>
+            </div>
           )}
         </div>
       </header>
@@ -269,15 +284,15 @@ export default async function PublicNoteDetailPage({
 
           {/* AI features — shown to all logged-in users, read-only for non-owners */}
           <div id="flashcards">
-            <FlashcardsSection noteId={id} initialFlashcards={flashcards} isGuest={false} />
+            <FlashcardsSection noteId={id} initialFlashcards={flashcards} isGuest={isGuest} isOwner={isOwner} />
           </div>
           <div id="mindmap">
-            <MindMapSection noteId={id} initialMindmap={mindmap} isGuest={false} />
+            <MindMapSection noteId={id} initialMindmap={mindmap} isGuest={isGuest} isOwner={isOwner} />
           </div>
           <div id="chat">
-            <NoteChatAssistant noteId={id} isGuest={false} />
+            <NoteChatAssistant noteId={id} isGuest={isGuest} isOwner={isOwner} />
           </div>
-          <NoteExamSection noteId={id} isGuest={false} />
+          <NoteExamSection noteId={id} isGuest={isGuest} isOwner={isOwner} />
         </NoteLayoutWrapper>
       </main>
     </div>

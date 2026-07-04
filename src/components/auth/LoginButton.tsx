@@ -16,11 +16,13 @@ export default function LoginButton({ redirectAfter }: { redirectAfter?: string 
 
   const handleLogin = async () => {
     setLoading(true);
-    const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
-    if (redirectAfter) callbackUrl.searchParams.set('next', redirectAfter);
+    if (redirectAfter) {
+      document.cookie = `sb-next=${encodeURIComponent(redirectAfter)}; path=/; max-age=600; SameSite=Lax; Secure`;
+    }
+    const callbackUrl = `${window.location.origin}/auth/callback`;
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: callbackUrl.toString() },
+      options: { redirectTo: callbackUrl },
     });
   };
 

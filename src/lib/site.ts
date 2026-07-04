@@ -26,6 +26,10 @@ export function parseFolderInfo(rawName: string) {
       description = parsed.description || '';
       color = parsed.color || '';
       emoji = parsed.emoji || emoji;
+      // Filter out flag emojis (which render as 2-letter codes on Windows)
+      if (/^[\u{1F1E6}-\u{1F1FF}]{2}$/u.test(emoji)) {
+        emoji = '📁';
+      }
     } catch {
       return { displayName: rawName, description: '', color: '', emoji: '📁' };
     }

@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MindmapNode } from '@/lib/utils/flashcardHelper';
+import { showAlert } from '@/lib/utils/customDialog';
 
 interface MindMapSectionProps {
   noteId: string;
   initialMindmap: MindmapNode | null;
   isGuest?: boolean;
+  isOwner?: boolean;
 }
 
-export default function MindMapSection({ noteId, initialMindmap, isGuest = false }: MindMapSectionProps) {
+export default function MindMapSection({ noteId, initialMindmap, isGuest = false, isOwner = true }: MindMapSectionProps) {
   const [mindmap, setMindmap] = useState<MindmapNode | null>(initialMindmap);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +22,10 @@ export default function MindMapSection({ noteId, initialMindmap, isGuest = false
   const handleGenerate = async () => {
     if (isGuest) {
       window.location.href = '/';
+      return;
+    }
+    if (!isOwner) {
+      showAlert('Silakan simpan catatan ini ke Catatan Saya terlebih dahulu untuk menggunakan fitur AI.');
       return;
     }
     setGenerating(true);

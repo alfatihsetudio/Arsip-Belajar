@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-export default function DuplicateButton({ noteId }: { noteId: string }) {
+export default function DuplicateButton({ noteId, isGuest = false }: { noteId: string; isGuest?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string>('');
@@ -14,6 +14,10 @@ export default function DuplicateButton({ noteId }: { noteId: string }) {
   const supabase = createClient();
 
   const handleOpen = async () => {
+    if (isGuest) {
+      router.push(`/?next=/note/${noteId}`);
+      return;
+    }
     setIsOpen(true);
     // Fetch user's folders
     const { data: { user } } = await supabase.auth.getUser();
@@ -53,8 +57,8 @@ export default function DuplicateButton({ noteId }: { noteId: string }) {
         className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)] text-[var(--accent-fg)] rounded-lg font-bold text-[11px] sm:text-xs hover:opacity-90 transition-opacity flex-shrink-0 shadow-sm"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        <span className="hidden sm:inline">Simpan ke Catatan Saya</span>
-        <span className="sm:hidden">Simpan</span>
+        <span className="hidden sm:inline">{isGuest ? 'Masuk & Simpan Catatan' : 'Simpan ke Catatan Saya'}</span>
+        <span className="sm:hidden">{isGuest ? 'Masuk & Simpan' : 'Simpan'}</span>
       </button>
 
       {isOpen && (

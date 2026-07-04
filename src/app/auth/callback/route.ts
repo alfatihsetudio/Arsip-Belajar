@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   
-  // if "next" is in param, use it as the redirect URL
-  const next = searchParams.get('next') ?? '/dashboard'
+  const cookieStore = await cookies()
+  const nextCookie = cookieStore.get('sb-next')?.value
+  const next = nextCookie ? decodeURIComponent(nextCookie) : (searchParams.get('next') ?? '/dashboard')
+
+  if (nextCookie) {
+    try {
+      cookieStore.delete('sb-next')
+    } catch (e) {}
+  }
 
   if (code) {
     const supabase = await createClient()

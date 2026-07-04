@@ -21,7 +21,7 @@ const NAV_ITEMS = [
     group: 'Learn',
     items: [
       { href: '/dashboard/ai', icon: ChatIcon, label: 'Tanya AI' },
-      { href: '/dashboard/shared', icon: ShareIcon, label: 'Catatan Dibagikan' },
+      { href: '/dashboard/shared', icon: ShareIcon, label: 'Dibagikan' },
       { href: '/dashboard/exams', icon: ExamIcon, label: 'Exams' },
     ],
   },

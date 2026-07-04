@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { showAlert } from '@/lib/utils/customDialog';
 
 interface Question {
   question: string;
@@ -11,9 +12,10 @@ interface Question {
 interface NoteExamSectionProps {
   noteId: string;
   isGuest?: boolean;
+  isOwner?: boolean;
 }
 
-export default function NoteExamSection({ noteId, isGuest = false }: NoteExamSectionProps) {
+export default function NoteExamSection({ noteId, isGuest = false, isOwner = true }: NoteExamSectionProps) {
   const [loading, setLoading] = useState(false);
   const [difficulty, setDifficulty] = useState('sedang');
   const [count, setCount] = useState(5);
@@ -40,6 +42,10 @@ export default function NoteExamSection({ noteId, isGuest = false }: NoteExamSec
   const generateQuiz = async () => {
     if (isGuest) {
       window.location.href = '/';
+      return;
+    }
+    if (!isOwner) {
+      showAlert('Silakan simpan catatan ini ke Catatan Saya terlebih dahulu untuk menggunakan fitur AI.');
       return;
     }
     setLoading(true);
