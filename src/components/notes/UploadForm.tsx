@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -27,8 +27,36 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState('');
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // Close folder dropdown on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(e.target as Node)) {
+        setIsFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const getSelectedFolderName = () => {
+    if (!folderId) return 'Tanpa Folder (Root)';
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return 'Tanpa Folder (Root)';
+    if (folder.name.startsWith('{')) {
+      try {
+        return JSON.parse(folder.name).name || folder.name;
+      } catch {
+        return folder.name;
+      }
+    }
+    return folder.name;
+  };
 
   const addImages = useCallback((files: FileList | File[]) => {
     const newImages = Array.from(files).map(file => ({
@@ -182,18 +210,65 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
       </div>
 
       {/* Folder Selection */}
-      <div className="mb-5">
+      <div className="mb-5" ref={folderDropdownRef}>
         <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">Folder</label>
-        <select
-          value={folderId}
-          onChange={e => setFolderId(e.target.value)}
-          className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-[var(--accent)] text-[var(--text-secondary)] transition-colors"
-        >
-          <option value="">No Folder (Root)</option>
-          {folders.map(f => (
-            <option key={f.id} value={f.id}>{f.name}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
+            className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] hover:border-[var(--text-secondary)] transition-colors flex items-center justify-between cursor-pointer"
+          >
+            <span>{getSelectedFolderName()}</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`text-[var(--text-secondary)] transition-transform duration-200 ${isFolderDropdownOpen ? 'rotate-180' : ''}`}
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+
+          {isFolderDropdownOpen && (
+            <div className="absolute left-0 right-0 mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1.5 max-h-60 overflow-y-auto animate-fadeIn">
+              <button
+                type="button"
+                onClick={() => {
+                  setFolderId('');
+                  setIsFolderDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2 text-sm font-semibold transition-colors cursor-pointer hover:bg-[var(--surface-2)] ${
+                  !folderId ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'
+                }`}
+              >
+                Tanpa Folder (Root)
+              </button>
+              {folders.map(f => {
+                const folderName = f.name.startsWith('{') ? (() => { try { return JSON.parse(f.name).name || f.name; } catch { return f.name; } })() : f.name;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      setFolderId(f.id);
+                      setIsFolderDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm font-semibold transition-colors cursor-pointer hover:bg-[var(--surface-2)] ${
+                      folderId === f.id ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {folderName}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Image Upload Area */}
