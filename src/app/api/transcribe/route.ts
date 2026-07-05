@@ -13,13 +13,25 @@ export async function POST(req: NextRequest) {
 
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Fetch user profile for storage check
+    const { data: profile } = await supabase.from('profiles').select('storage_used, subscription_tier').eq('id', user.id).single();
+    const subscriptionTier = profile?.subscription_tier || 'free';
+    const storageUsed = profile?.storage_used || 0;
+
+    // Optional: Check quota before processing (though frontend also checks)
+    const QUOTA = subscriptionTier === 'free' ? 100 * 1024 * 1024 : 
+                  subscriptionTier === 'premium_1' ? 1024 * 1024 * 1024 : 
+                  3 * 1024 * 1024 * 1024;
+    
+    if (storageUsed > QUOTA) {
+       return NextResponse.json({ error: 'Storage Quota Exceeded. Silakan hapus catatan lama atau upgrade ke Premium.' }, { status: 403 });
+    }
+
     const formData = await req.formData();
     const title = formData.get('title') as string;
     const folderIdRaw = formData.get('folder_id') as string | null;
     const mergeStrategy = formData.get('merge_strategy') as 'gabung' | 'pisah' | null;
     const existingNoteId = formData.get('existing_note_id') as string | null;
-    
-    console.log('API RECEIVED folder_id:', folderIdRaw, 'merge_strategy:', mergeStrategy, 'existing_note_id:', existingNoteId);
     
     const folderId = (folderIdRaw && folderIdRaw !== 'null' && folderIdRaw !== 'undefined' && folderIdRaw.trim() !== '')
       ? folderIdRaw.trim()
@@ -32,63 +44,103 @@ export async function POST(req: NextRequest) {
       }
     }
       
-    const imageFiles = formData.getAll('images') as File[];
-    const audioFile = formData.get('audio') as File | null;
+    // New direct upload paths from frontend
+    const imagePathsStr = formData.get('image_paths') as string | null;
+    const audioPath = formData.get('audio_path') as string | null;
+    
+    // Legacy support just in case
+    const legacyImageFiles = formData.getAll('images') as File[];
+    const legacyAudioFile = formData.get('audio') as File | null;
 
-    if ((!imageFiles || imageFiles.length === 0) && !audioFile) {
-      return NextResponse.json({ error: 'No images or audio provided' }, { status: 400 });
+    let imagePaths: string[] = [];
+    if (imagePathsStr) {
+      try { imagePaths = JSON.parse(imagePathsStr); } catch(e) {}
     }
 
-    // 1. Upload files to Supabase Storage
-    const uploadedUrls: { url: string; order: number; type: 'image' | 'audio' }[] = [];
+    if (imagePaths.length === 0 && !audioPath && legacyImageFiles.length === 0 && !legacyAudioFile) {
+      return NextResponse.json({ error: 'No media provided' }, { status: 400 });
+    }
 
-    if (imageFiles.length > 0) {
-      for (let i = 0; i < imageFiles.length; i++) {
-        const file = imageFiles[i];
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+    const uploadedUrls: { url: string; order: number; type: 'image' | 'audio' }[] = [];
+    
+    // Helper to download from Supabase Storage for Gemini processing
+    const downloadFromStorage = async (path: string) => {
+      const { data, error } = await supabase.storage.from('media').download(path);
+      if (error || !data) throw new Error(`Failed to download ${path}`);
+      return { buffer: Buffer.from(await data.arrayBuffer()), type: data.type };
+    };
+
+    // Helper to generate signed url
+    const getSignedUrl = async (path: string) => {
+      const { data } = await supabase.storage.from('media').createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+      return data?.signedUrl;
+    };
+
+    const imageParts: { inlineData: { data: string, mimeType: string } }[] = [];
+    let audioPart: { inlineData: { data: string, mimeType: string } } | null = null;
+
+    // Process Images
+    if (imagePaths.length > 0) {
+      for (let i = 0; i < imagePaths.length; i++) {
+        const path = imagePaths[i];
+        const { buffer, type } = await downloadFromStorage(path);
+        imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: type || 'image/jpeg' } });
+        
+        const signedUrl = await getSignedUrl(path);
+        if (signedUrl) uploadedUrls.push({ url: signedUrl, order: i, type: 'image' });
+      }
+    } else if (legacyImageFiles.length > 0) {
+      // Legacy handling
+      for (let i = 0; i < legacyImageFiles.length; i++) {
+        const file = legacyImageFiles[i];
+        const buffer = Buffer.from(await file.arrayBuffer());
+        imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: file.type || 'image/jpeg' } });
+        
         const fileExt = file.name.split('.').pop() || 'jpg';
         const fileName = `${user.id}/${Date.now()}-${i}.${fileExt}`;
-
-        const { error: storageError } = await supabase.storage
-          .from('media')
-          .upload(fileName, buffer, { contentType: file.type || 'image/jpeg' });
-
-        if (storageError) {
-          console.error('Storage error:', storageError);
-          return NextResponse.json({ error: `Failed to upload image ${i + 1}: ${storageError.message}` }, { status: 500 });
-        }
-
-        const { data: signedUrl } = await supabase.storage
-          .from('media')
-          .createSignedUrl(fileName, 60 * 60 * 24 * 365 * 10);
-
-        if (!signedUrl) return NextResponse.json({ error: 'Failed to generate signed URL' }, { status: 500 });
-        uploadedUrls.push({ url: signedUrl.signedUrl, order: i, type: 'image' });
+        await supabase.storage.from('media').upload(fileName, buffer, { contentType: file.type || 'image/jpeg' });
+        const signedUrl = await getSignedUrl(fileName);
+        if (signedUrl) uploadedUrls.push({ url: signedUrl, order: i, type: 'image' });
       }
     }
 
-    if (audioFile) {
-      const arrayBuffer = await audioFile.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const fileExt = audioFile.name.split('.').pop() || 'mp3';
-      const fileName = `${user.id}/${Date.now()}-audio.${fileExt}`;
-
-      const { error: storageError } = await supabase.storage
-        .from('media')
-        .upload(fileName, buffer, { contentType: audioFile.type || 'audio/mpeg' });
-
-      if (storageError) {
-        console.error('Storage error:', storageError);
-        return NextResponse.json({ error: `Failed to upload audio: ${storageError.message}` }, { status: 500 });
+    // Process Audio
+    if (audioPath) {
+      const { buffer, type } = await downloadFromStorage(audioPath);
+      let finalMimeType = type || 'audio/mpeg';
+      if (finalMimeType.startsWith('video/')) finalMimeType = 'audio/mp4';
+      else if (!finalMimeType.startsWith('audio/')) finalMimeType = 'audio/mpeg';
+      
+      audioPart = { inlineData: { data: buffer.toString('base64'), mimeType: finalMimeType } };
+      
+      // Ephemeral Audio Logic: ONLY save to note_media if Premium
+      if (subscriptionTier !== 'free') {
+        const signedUrl = await getSignedUrl(audioPath);
+        if (signedUrl) uploadedUrls.push({ url: signedUrl, order: 0, type: 'audio' });
+      } else {
+        // Free user: Schedule deletion (we can delete right away after AI processing)
+        // Wait, if we delete it right away, they won't be able to listen to it. That's the design!
+        // We will execute the deletion at the end of this function.
       }
-
-      const { data: signedUrl } = await supabase.storage
-        .from('media')
-        .createSignedUrl(fileName, 60 * 60 * 24 * 365 * 10);
-
-      if (!signedUrl) return NextResponse.json({ error: 'Failed to generate signed URL' }, { status: 500 });
-      uploadedUrls.push({ url: signedUrl.signedUrl, order: 0, type: 'audio' });
+    } else if (legacyAudioFile) {
+      const buffer = Buffer.from(await legacyAudioFile.arrayBuffer());
+      let finalMimeType = legacyAudioFile.type || 'audio/mpeg';
+      if (finalMimeType.startsWith('video/')) finalMimeType = 'audio/mp4';
+      else if (!finalMimeType.startsWith('audio/')) finalMimeType = 'audio/mpeg';
+      
+      audioPart = { inlineData: { data: buffer.toString('base64'), mimeType: finalMimeType } };
+      
+      const fileExt = legacyAudioFile.name.split('.').pop() || 'mp3';
+      const fileName = `${user.id}/${Date.now()}-audio.${fileExt}`;
+      await supabase.storage.from('media').upload(fileName, buffer, { contentType: legacyAudioFile.type || 'audio/mpeg' });
+      
+      if (subscriptionTier !== 'free') {
+         const signedUrl = await getSignedUrl(fileName);
+         if (signedUrl) uploadedUrls.push({ url: signedUrl, order: 0, type: 'audio' });
+      } else {
+         // Free user ephemeral deletion
+         await supabase.storage.from('media').remove([fileName]);
+      }
     }
 
     // Fetch existing note if appending
@@ -101,25 +153,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Process with Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
-
-    const getAudioPart = async (file: File) => {
-      const arrayBuffer = await file.arrayBuffer();
-      let finalMimeType = file.type || 'audio/mpeg';
-      if (finalMimeType.startsWith('video/')) finalMimeType = 'audio/mp4';
-      else if (!finalMimeType.startsWith('audio/')) finalMimeType = 'audio/mpeg';
-      return { inlineData: { data: Buffer.from(arrayBuffer).toString('base64'), mimeType: finalMimeType } };
-    };
-
-    const getImageParts = async (files: File[]) => {
-      return Promise.all(files.map(async (file) => ({
-        inlineData: { data: Buffer.from(await file.arrayBuffer()).toString('base64'), mimeType: file.type || 'image/jpeg' }
-      })));
-    };
-
-    const audioPart = audioFile ? await getAudioPart(audioFile) : null;
-    const imageParts = imageFiles.length > 0 ? await getImageParts(imageFiles) : [];
-    
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     let transcribedText = '';
 
     const basePrompt = `You are an expert educational notes transcriber.
@@ -153,8 +187,7 @@ CRITICAL FORMATTING RULES:
     };
 
     if (mergeStrategy === 'gabung' || (existingNoteId && mergeStrategy !== 'pisah')) {
-      // IF GABUNG, or Appending without explicit 'pisah':
-      const hasBothNew = audioFile && imageFiles.length > 0;
+      const hasBothNew = audioPart && imageParts.length > 0;
       
       let mergePrompt = `${basePrompt}\n\n`;
       const mediaParts = [];
@@ -168,24 +201,22 @@ CRITICAL FORMATTING RULES:
          mediaParts.push(audioPart!);
          mediaParts.push(...imageParts);
       } else {
-         // Fallback if Gabung selected but only one media type provided and not appending
-         if (audioFile) mediaParts.push(audioPart!);
-         if (imageFiles.length > 0) mediaParts.push(...imageParts);
+         if (audioPart) mediaParts.push(audioPart);
+         if (imageParts.length > 0) mediaParts.push(...imageParts);
       }
 
       const res = await model.generateContent([mergePrompt, ...mediaParts]);
       transcribedText = res.response.text();
     } else {
-      // PISAH
       let audioResult = '';
       let imageResult = '';
       
-      if (audioFile && imageFiles.length > 0) {
+      if (audioPart && imageParts.length > 0) {
         [audioResult, imageResult] = await Promise.all([getAudioResult(), getImageResult()]);
         transcribedText = `TRANSKRIPSI FOTO PAPAN TULIS:\n\n${imageResult}\n\n------------------------------------------------------------\n\nTRANSKRIPSI REKAMAN AUDIO:\n\n${audioResult}`;
-      } else if (audioFile) {
+      } else if (audioPart) {
         transcribedText = await getAudioResult();
-      } else if (imageFiles.length > 0) {
+      } else if (imageParts.length > 0) {
         transcribedText = await getImageResult();
       }
 
@@ -233,9 +264,8 @@ CRITICAL FORMATTING RULES:
     let noteIdToReturn = existingNoteId;
 
     if (existingNoteId) {
-      // Update existing note
       const updateData: any = { transcribed_text: transcribedText };
-      if (!existingText && uploadedUrls.length > 0) {
+      if (!existingText && uploadedUrls.length > 0 && uploadedUrls[0].type === 'image') {
         updateData.image_url = uploadedUrls[0].url;
       }
 
@@ -244,12 +274,8 @@ CRITICAL FORMATTING RULES:
         .update(updateData)
         .eq('id', existingNoteId);
 
-      if (noteError) {
-        console.error('DB update error:', noteError);
-        return NextResponse.json({ error: 'Failed to update existing note' }, { status: 500 });
-      }
+      if (noteError) throw new Error('Failed to update existing note');
     } else {
-      // 3. Save new note to database
       const { data: note, error: noteError } = await supabase
         .from('notes')
         .insert({ 
@@ -257,19 +283,16 @@ CRITICAL FORMATTING RULES:
           title: finalTitle, 
           transcribed_text: transcribedText,
           folder_id: folderId,
-          image_url: uploadedUrls[0]?.url || null
+          image_url: uploadedUrls.find(u => u.type === 'image')?.url || null
         })
         .select()
         .single();
 
-      if (noteError || !note) {
-        console.error('DB error:', noteError);
-        return NextResponse.json({ error: 'Failed to save note' }, { status: 500 });
-      }
+      if (noteError || !note) throw new Error('Failed to save note');
       noteIdToReturn = note.id;
     }
 
-    // 4. Save media records
+    // Save media records
     const mediaInserts = uploadedUrls.map(({ url, order, type }) => ({
       note_id: noteIdToReturn,
       media_url: url,
@@ -278,46 +301,32 @@ CRITICAL FORMATTING RULES:
     }));
 
     if (mediaInserts.length > 0) {
-      const { error: mediaError } = await supabase.from('note_media').insert(mediaInserts);
-      if (mediaError) {
-        console.error('Media insert error:', mediaError);
-      }
+      await supabase.from('note_media').insert(mediaInserts);
     }
 
-    // 5. Connect AI generated tags
+    // Connect AI generated tags
     if (Array.isArray(aiTags) && aiTags.length > 0 && noteIdToReturn) {
       for (const tagName of aiTags) {
         const cleanName = tagName.trim().toLowerCase();
         if (!cleanName) continue;
         try {
-          const { data: existingTag } = await supabase
-            .from('tags')
-            .select('id')
-            .eq('name', cleanName)
-            .eq('user_id', user.id)
-            .maybeSingle();
-            
+          const { data: existingTag } = await supabase.from('tags').select('id').eq('name', cleanName).eq('user_id', user.id).maybeSingle();
           let tagId = existingTag?.id;
-          
           if (!tagId) {
-            const { data: newTag } = await supabase
-              .from('tags')
-              .insert({ name: cleanName, user_id: user.id })
-              .select('id')
-              .single();
+            const { data: newTag } = await supabase.from('tags').insert({ name: cleanName, user_id: user.id }).select('id').single();
             tagId = newTag?.id;
           }
-          
           if (tagId) {
-            await supabase.from('note_tags').insert({
-              note_id: noteIdToReturn,
-              tag_id: tagId
-            });
+            await supabase.from('note_tags').insert({ note_id: noteIdToReturn, tag_id: tagId });
           }
-        } catch (e) {
-          console.error('Error adding tag:', tagName, e);
-        }
+        } catch (e) {}
       }
+    }
+
+    // Ephemeral Audio Deletion: Delete from Supabase Storage after successful processing
+    if (audioPath && subscriptionTier === 'free') {
+       await supabase.storage.from('media').remove([audioPath]);
+       console.log('Ephemeral audio deleted:', audioPath);
     }
 
     return NextResponse.json({ 

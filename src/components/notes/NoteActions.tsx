@@ -45,6 +45,25 @@ export default function NoteActions({
         return;
       }
 
+      // Fetch all media associated with this note to delete them from Storage
+      const { data: mediaFiles } = await supabase.from('note_media').select('media_url').eq('note_id', noteId);
+      
+      if (mediaFiles && mediaFiles.length > 0) {
+        const filePaths = mediaFiles.map(m => {
+          try {
+            const urlObj = new URL(m.media_url);
+            const pathParts = urlObj.pathname.split('/media/');
+            if (pathParts.length > 1) return pathParts[1];
+          } catch(e) {}
+          return null;
+        }).filter(Boolean) as string[];
+
+        if (filePaths.length > 0) {
+          const { error: storageErr } = await supabase.storage.from('media').remove(filePaths);
+          if (storageErr) console.error('Failed to delete files from storage:', storageErr);
+        }
+      }
+
       // Delete child rows first to avoid foreign key violations
       const { error: mediaErr } = await supabase.from('note_media').delete().eq('note_id', noteId);
       if (mediaErr) console.error('Media delete error:', mediaErr);
