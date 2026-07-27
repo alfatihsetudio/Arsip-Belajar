@@ -206,34 +206,124 @@ export default function Sidebar({ user }: { user: User }) {
     });
   };
 
+  const compressImage = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) return resolve(file);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(file);
+
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return resolve(file);
+              resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: 'image/jpeg' }));
+            },
+            'image/jpeg',
+            0.65
+          );
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleCreateNoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (noteImages.length === 0 && !noteAudioFile) return setNoteError('Harap tambahkan minimal satu gambar atau file audio.');
     if (!isNoteAutoTitle && !noteTitle.trim()) return setNoteError('Harap masukkan judul catatan.');
 
+    const AUDIO_LIMIT = 25 * 1024 * 1024; // 25 MB
+    if (noteAudioFile && noteAudioFile.size > AUDIO_LIMIT) {
+      return setNoteError(`Ukuran file audio terlalu besar (${(noteAudioFile.size / 1024 / 1024).toFixed(1)} MB). Maksimal 25 MB.`);
+    }
+
     setNoteProcessing(true);
     setNoteError(null);
-    setNoteProgress('Mengunggah gambar...');
-
-    const formData = new FormData();
-    formData.append('title', noteTitle.trim());
-    if (noteFolderId) formData.append('folder_id', noteFolderId);
-    
-    if (noteImages.length > 0) {
-      noteImages.forEach((img, i) => {
-        formData.append('images', img.file);
-        formData.append(`order_${i}`, String(i));
-      });
-    }
-
-    if (noteAudioFile) {
-      formData.append('audio', noteAudioFile);
-    }
+    setNoteProgress('Mengompres media...');
 
     try {
+      const compressedFiles = await Promise.all(noteImages.map(img => compressImage(img.file)));
+
+      setNoteProgress('Memeriksa kuota & mengunggah...');
+      
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('Anda harus login terlebih dahulu.');
+
+      const { data: profile } = await supabase.from('profiles').select('storage_used, subscription_tier').eq('id', currentUser.id).single();
+      const quota = profile?.subscription_tier === 'free' ? 100 * 1024 * 1024 : profile?.subscription_tier === 'premium_1' ? 1024 * 1024 * 1024 : 3 * 1024 * 1024 * 1024;
+      const totalUploadSize = compressedFiles.reduce((acc, f) => acc + f.size, 0) + (noteAudioFile ? noteAudioFile.size : 0);
+      
+      if ((profile?.storage_used || 0) + totalUploadSize > quota) {
+         throw new Error('Penyimpanan penuh! Silakan hapus catatan lama atau upgrade ke Premium.');
+      }
+
+      // Direct Upload to Supabase Storage (Bypasses Vercel 4.5MB payload limit)
+      const imagePaths: string[] = [];
+      for (let i = 0; i < compressedFiles.length; i++) {
+        const file = compressedFiles[i];
+        const ext = file.name.split('.').pop() || 'jpg';
+        const fileName = `${currentUser.id}/${Date.now()}-${i}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, file, { contentType: file.type });
+        if (uploadError) throw new Error('Gagal mengupload gambar: ' + uploadError.message);
+        imagePaths.push(fileName);
+      }
+
+      let audioPath: string | null = null;
+      if (noteAudioFile) {
+        setNoteProgress('Mengunggah audio...');
+        const ext = noteAudioFile.name.split('.').pop() || 'mp3';
+        const fileName = `${currentUser.id}/${Date.now()}-audio.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, noteAudioFile, { contentType: noteAudioFile.type });
+        if (uploadError) throw new Error('Gagal mengupload audio: ' + uploadError.message);
+        audioPath = fileName;
+      }
+
       setNoteProgress('Memproses teks dengan AI...');
+
+      const formData = new FormData();
+      formData.append('title', noteTitle.trim());
+      if (noteFolderId) formData.append('folder_id', noteFolderId);
+      if (imagePaths.length > 0) formData.append('image_paths', JSON.stringify(imagePaths));
+      if (audioPath) formData.append('audio_path', audioPath);
+
       const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
-      const data = await res.json();
+      
+      let data;
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || 'Gagal memproses catatan (Server error)');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Gagal memproses catatan');
       
       setNoteTitle('');
@@ -763,7 +853,7 @@ export default function Sidebar({ user }: { user: User }) {
                   {noteProcessing ? (
                     <>
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Proses...</span>
+                      <span>{noteProgress || 'Proses...'}</span>
                     </>
                   ) : (
                     <>
