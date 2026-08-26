@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-flash-lite-latest',
+      model: 'models/gemini-flash-lite-latest',
       generationConfig: {
         responseMimeType: 'application/json',
         maxOutputTokens: 8192,

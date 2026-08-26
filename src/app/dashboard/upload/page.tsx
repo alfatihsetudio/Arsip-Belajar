@@ -1,27 +1,25 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import UploadForm from '@/components/notes/UploadForm';
+import pool from '@/lib/db';
 
 export default async function UploadDashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{ folder?: string }>;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
-  // Fetch folders directly on the server (100% reliable)
-  const { data: folders } = await supabase
-    .from('folders')
-    .select('id, name')
-    .eq('user_id', user.id)
-    .order('name');
+  const foldersRes = await pool.query(
+    `SELECT id, name FROM public.folders WHERE user_id = $1 ORDER BY name`,
+    [userId]
+  );
 
   const { folder } = await searchParams;
   const initialFolderId = folder || '';
 
   return (
-    <UploadForm folders={folders || []} initialFolderId={initialFolderId} />
+    <UploadForm folders={foldersRes.rows} initialFolderId={initialFolderId} />
   );
 }

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
+import { getPublicUrl, s3, R2_BUCKET } from '@/lib/s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const maxDuration = 60;
@@ -8,15 +11,15 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Fetch user profile for storage check
-    const { data: profile } = await supabase.from('profiles').select('storage_used, subscription_tier').eq('id', user.id).single();
-    const subscriptionTier = profile?.subscription_tier || 'free';
-    const storageUsed = profile?.storage_used || 0;
+    // Fetch user profile for storage check (via Neon)
+    const profileRes = await pool.query('SELECT storage_used, subscription_tier FROM public.profiles WHERE id = $1 LIMIT 1', [userId]);
+    const profile = profileRes.rows[0] || {};
+    const subscriptionTier = profile.subscription_tier || 'free';
+    const storageUsed = profile.storage_used || 0;
 
     // Optional: Check quota before processing (though frontend also checks)
     const QUOTA = subscriptionTier === 'free' ? 100 * 1024 * 1024 : 
@@ -38,13 +41,13 @@ export async function POST(req: NextRequest) {
       : null;
 
     if (folderId) {
-      const { data: folderCheck } = await supabase.from('folders').select('id').eq('id', folderId).eq('user_id', user.id).single();
-      if (!folderCheck) {
+      const folderCheck = await pool.query('SELECT id FROM public.folders WHERE id = $1 AND user_id = $2 LIMIT 1', [folderId, userId]);
+      if (folderCheck.rows.length === 0) {
         return NextResponse.json({ error: 'Folder not found or access denied' }, { status: 403 });
       }
     }
       
-    // New direct upload paths from frontend
+    // New direct upload paths from frontend (R2 keys)
     const imagePathsStr = formData.get('image_paths') as string | null;
     const audioPath = formData.get('audio_path') as string | null;
     
@@ -63,17 +66,13 @@ export async function POST(req: NextRequest) {
 
     const uploadedUrls: { url: string; order: number; type: 'image' | 'audio' }[] = [];
     
-    // Helper to download from Supabase Storage for Gemini processing
+    // Helper to download from R2 for Gemini processing
     const downloadFromStorage = async (path: string) => {
-      const { data, error } = await supabase.storage.from('media').download(path);
-      if (error || !data) throw new Error(`Failed to download ${path}`);
-      return { buffer: Buffer.from(await data.arrayBuffer()), type: data.type };
-    };
-
-    // Helper to generate signed url
-    const getSignedUrl = async (path: string) => {
-      const { data } = await supabase.storage.from('media').createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
-      return data?.signedUrl;
+      const command = new GetObjectCommand({ Bucket: R2_BUCKET, Key: path });
+      const response = await s3.send(command);
+      const byteArray = await response.Body?.transformToByteArray();
+      if (!byteArray) throw new Error(`Failed to download ${path}`);
+      return { buffer: Buffer.from(byteArray), type: response.ContentType };
     };
 
     const imageParts: { inlineData: { data: string, mimeType: string } }[] = [];
@@ -86,21 +85,16 @@ export async function POST(req: NextRequest) {
         const { buffer, type } = await downloadFromStorage(path);
         imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: type || 'image/jpeg' } });
         
-        const signedUrl = await getSignedUrl(path);
-        if (signedUrl) uploadedUrls.push({ url: signedUrl, order: i, type: 'image' });
+        const publicUrl = await getPublicUrl(path);
+        if (publicUrl) uploadedUrls.push({ url: publicUrl, order: i, type: 'image' });
       }
     } else if (legacyImageFiles.length > 0) {
-      // Legacy handling
+      // Legacy handling (Should not happen in new upload flow, but kept for fallback)
       for (let i = 0; i < legacyImageFiles.length; i++) {
         const file = legacyImageFiles[i];
         const buffer = Buffer.from(await file.arrayBuffer());
         imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: file.type || 'image/jpeg' } });
-        
-        const fileExt = file.name.split('.').pop() || 'jpg';
-        const fileName = `${user.id}/${Date.now()}-${i}.${fileExt}`;
-        await supabase.storage.from('media').upload(fileName, buffer, { contentType: file.type || 'image/jpeg' });
-        const signedUrl = await getSignedUrl(fileName);
-        if (signedUrl) uploadedUrls.push({ url: signedUrl, order: i, type: 'image' });
+        // Legacy file will NOT be saved to storage permanently in this flow.
       }
     }
 
@@ -115,45 +109,28 @@ export async function POST(req: NextRequest) {
       
       // Ephemeral Audio Logic: ONLY save to note_media if Premium
       if (subscriptionTier !== 'free') {
-        const signedUrl = await getSignedUrl(audioPath);
-        if (signedUrl) uploadedUrls.push({ url: signedUrl, order: 0, type: 'audio' });
-      } else {
-        // Free user: Schedule deletion (we can delete right away after AI processing)
-        // Wait, if we delete it right away, they won't be able to listen to it. That's the design!
-        // We will execute the deletion at the end of this function.
+        const publicUrl = await getPublicUrl(audioPath);
+        if (publicUrl) uploadedUrls.push({ url: publicUrl, order: 0, type: 'audio' });
       }
     } else if (legacyAudioFile) {
       const buffer = Buffer.from(await legacyAudioFile.arrayBuffer());
       let finalMimeType = legacyAudioFile.type || 'audio/mpeg';
       if (finalMimeType.startsWith('video/')) finalMimeType = 'audio/mp4';
       else if (!finalMimeType.startsWith('audio/')) finalMimeType = 'audio/mpeg';
-      
       audioPart = { inlineData: { data: buffer.toString('base64'), mimeType: finalMimeType } };
-      
-      const fileExt = legacyAudioFile.name.split('.').pop() || 'mp3';
-      const fileName = `${user.id}/${Date.now()}-audio.${fileExt}`;
-      await supabase.storage.from('media').upload(fileName, buffer, { contentType: legacyAudioFile.type || 'audio/mpeg' });
-      
-      if (subscriptionTier !== 'free') {
-         const signedUrl = await getSignedUrl(fileName);
-         if (signedUrl) uploadedUrls.push({ url: signedUrl, order: 0, type: 'audio' });
-      } else {
-         // Free user ephemeral deletion
-         await supabase.storage.from('media').remove([fileName]);
-      }
     }
 
     // Fetch existing note if appending
     let existingText = '';
     if (existingNoteId) {
-      const { data: exNote, error: exErr } = await supabase.from('notes').select('transcribed_text').eq('id', existingNoteId).single();
-      if (!exErr && exNote) {
-        existingText = exNote.transcribed_text || '';
+      const exNoteRes = await pool.query('SELECT transcribed_text FROM public.notes WHERE id = $1 AND user_id = $2 LIMIT 1', [existingNoteId, userId]);
+      if (exNoteRes.rows.length > 0) {
+        existingText = exNoteRes.rows[0].transcribed_text || '';
       }
     }
 
     // 2. Process with Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
     let transcribedText = '';
 
     const basePrompt = `You are an expert educational notes transcriber.
@@ -264,44 +241,33 @@ CRITICAL FORMATTING RULES:
     let noteIdToReturn = existingNoteId;
 
     if (existingNoteId) {
-      const updateData: any = { transcribed_text: transcribedText };
+      const updateQuery = `
+        UPDATE public.notes 
+        SET transcribed_text = $1 ${(!existingText && uploadedUrls.length > 0 && uploadedUrls[0].type === 'image') ? ', image_url = $2' : ''}
+        WHERE id = ${(!existingText && uploadedUrls.length > 0 && uploadedUrls[0].type === 'image') ? '$3' : '$2'}
+      `;
+      const updateParams = [transcribedText];
       if (!existingText && uploadedUrls.length > 0 && uploadedUrls[0].type === 'image') {
-        updateData.image_url = uploadedUrls[0].url;
+        updateParams.push(uploadedUrls[0].url);
       }
+      updateParams.push(existingNoteId);
 
-      const { error: noteError } = await supabase
-        .from('notes')
-        .update(updateData)
-        .eq('id', existingNoteId);
-
-      if (noteError) throw new Error('Failed to update existing note');
+      await pool.query(updateQuery, updateParams);
     } else {
-      const { data: note, error: noteError } = await supabase
-        .from('notes')
-        .insert({ 
-          user_id: user.id, 
-          title: finalTitle, 
-          transcribed_text: transcribedText,
-          folder_id: folderId,
-          image_url: uploadedUrls.find(u => u.type === 'image')?.url || null
-        })
-        .select()
-        .single();
-
-      if (noteError || !note) throw new Error('Failed to save note');
-      noteIdToReturn = note.id;
+      const insertRes = await pool.query(
+        `INSERT INTO public.notes (user_id, title, transcribed_text, folder_id, image_url)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [userId, finalTitle, transcribedText, folderId, uploadedUrls.find(u => u.type === 'image')?.url || null]
+      );
+      noteIdToReturn = insertRes.rows[0].id;
     }
 
     // Save media records
-    const mediaInserts = uploadedUrls.map(({ url, order, type }) => ({
-      note_id: noteIdToReturn,
-      media_url: url,
-      media_type: type,
-      order_index: order,
-    }));
-
-    if (mediaInserts.length > 0) {
-      await supabase.from('note_media').insert(mediaInserts);
+    if (uploadedUrls.length > 0) {
+      const values = uploadedUrls.map((u, i) => `($1, $${i*3 + 2}, $${i*3 + 3}, $${i*3 + 4})`).join(', ');
+      const params: any[] = [noteIdToReturn];
+      uploadedUrls.forEach(u => params.push(u.url, u.type, u.order));
+      await pool.query(`INSERT INTO public.note_media (note_id, media_url, media_type, order_index) VALUES ${values}`, params);
     }
 
     // Connect AI generated tags
@@ -310,23 +276,26 @@ CRITICAL FORMATTING RULES:
         const cleanName = tagName.trim().toLowerCase();
         if (!cleanName) continue;
         try {
-          const { data: existingTag } = await supabase.from('tags').select('id').eq('name', cleanName).eq('user_id', user.id).maybeSingle();
-          let tagId = existingTag?.id;
+          const tagCheck = await pool.query('SELECT id FROM public.tags WHERE name = $1 AND user_id = $2 LIMIT 1', [cleanName, userId]);
+          let tagId = tagCheck.rows[0]?.id;
           if (!tagId) {
-            const { data: newTag } = await supabase.from('tags').insert({ name: cleanName, user_id: user.id }).select('id').single();
-            tagId = newTag?.id;
+            const newTag = await pool.query('INSERT INTO public.tags (name, user_id) VALUES ($1, $2) RETURNING id', [cleanName, userId]);
+            tagId = newTag.rows[0]?.id;
           }
           if (tagId) {
-            await supabase.from('note_tags').insert({ note_id: noteIdToReturn, tag_id: tagId });
+            await pool.query('INSERT INTO public.note_tags (note_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [noteIdToReturn, tagId]);
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error('Failed to insert tag:', e);
+        }
       }
     }
 
-    // Ephemeral Audio Deletion: Delete from Supabase Storage after successful processing
+    // Ephemeral Audio Deletion: Delete from R2 after successful processing
     if (audioPath && subscriptionTier === 'free') {
-       await supabase.storage.from('media').remove([audioPath]);
-       console.log('Ephemeral audio deleted:', audioPath);
+      const { deleteS3Object } = await import('@/lib/s3');
+      await deleteS3Object(audioPath);
+      console.log('Ephemeral audio deleted from R2:', audioPath);
     }
 
     return NextResponse.json({ 

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import NoteActions from '@/components/notes/NoteActions';
@@ -11,25 +11,33 @@ import NoteExamSection from '@/components/notes/NoteExamSection';
 import NoteLayoutWrapper from '@/components/notes/NoteLayoutWrapper';
 import DashboardNoteMediaPanel from '@/components/notes/DashboardNoteMediaPanel';
 import { parseNoteContent } from '@/lib/utils/flashcardHelper';
+import pool from '@/lib/db';
 
 export default async function NoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
-  const { data: note, error } = await supabase
-    .from('notes')
-    .select(`
-      *,
-      folder:folders(id, name),
-      note_media(id, media_url, order_index, media_type)
-    `)
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single();
+  const noteRes = await pool.query(
+    `SELECT
+       n.*,
+       CASE WHEN f.id IS NOT NULL THEN json_build_object('id', f.id, 'name', f.name) ELSE NULL END AS folder,
+       COALESCE(
+         json_agg(json_build_object('id', nm.id, 'media_url', nm.media_url, 'order_index', nm.order_index, 'media_type', nm.media_type)
+           ORDER BY nm.order_index)
+         FILTER (WHERE nm.id IS NOT NULL), '[]'
+       ) AS note_media
+     FROM public.notes n
+     LEFT JOIN public.folders f ON f.id = n.folder_id
+     LEFT JOIN public.note_media nm ON nm.note_id = n.id
+     WHERE n.id = $1 AND n.user_id = $2
+     GROUP BY n.id, f.id`,
+    [id, userId]
+  );
 
-  if (error || !note) notFound();
+  if (noteRes.rows.length === 0) notFound();
+  const note = noteRes.rows[0];
+
 
   const mediaToShow = [...(note.note_media || [])];
   
@@ -64,7 +72,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
                 className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1 flex-shrink-0"
                 style={(() => {
                   let color = '';
-                  if (note.folder.name.startsWith('{')) {
+                  if (note.folder.name && note.folder.name.startsWith('{')) {
                     try { color = JSON.parse(note.folder.name).color; } catch (e) {}
                   }
                   return color ? { color: color } : {};
@@ -73,17 +81,17 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
                 <span>
                   {(() => {
                     let emoji = '📁';
-                    if (note.folder.name.startsWith('{')) {
+                    if (note.folder.name && note.folder.name.startsWith('{')) {
                       try { emoji = JSON.parse(note.folder.name).emoji || emoji; } catch (e) {}
                     }
                     return emoji;
                   })()}
                 </span>
                 {(() => {
-                  if (note.folder.name.startsWith('{')) {
+                  if (note.folder.name && note.folder.name.startsWith('{')) {
                     try { return JSON.parse(note.folder.name).name; } catch (e) {}
                   }
-                  return note.folder.name;
+                  return note.folder.name || 'Folder Tanpa Nama';
                 })()}
               </Link>
             </>

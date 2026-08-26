@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Call Gemini API
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
 
     // Format chat history for prompt
     const formattedHistory = (history || [])

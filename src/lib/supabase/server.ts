@@ -1,29 +1,33 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-
-export async function createClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
+export const createClient = (): any => {
+  const executor = new Proxy({}, {
+    get: (target, prop) => {
+      if (prop === 'then') return undefined; // so it's not treated as a Promise immediately
+      return (...args: any[]) => executor;
     }
-  )
-}
+  });
+
+  return new Proxy({}, {
+    get: (target, prop) => {
+      if (prop === 'auth') {
+        return {
+          getUser: async () => ({ data: { user: { id: 'mock', user_metadata: {}, email: 'mock@example.com' } } }),
+          signOut: async () => {},
+          signInWithOAuth: async () => {},
+          updateUser: async () => ({ error: null })
+        };
+      }
+      if (prop === 'storage') {
+        return {
+          from: () => ({
+            upload: async () => ({ error: null }),
+            remove: async () => ({ error: null })
+          })
+        };
+      }
+      if (prop === 'from') {
+        return () => executor;
+      }
+      return (...args: any[]) => executor;
+    }
+  });
+};

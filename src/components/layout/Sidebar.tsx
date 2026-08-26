@@ -5,7 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import type { User } from '@supabase/supabase-js';
+import { useClerk } from '@clerk/nextjs';
+
 import ThemeSwitcher from './ThemeSwitcher';
 
 const NAV_ITEMS = [
@@ -66,10 +67,11 @@ const COLOR_OPTIONS = [
 
 const EMOJI_OPTIONS = ['📁', '🇬🇧', '📐', '🧬', '⚖️', '📜', '🎨', '💻', '💡', '📅', '🧠', '📚'];
 
-export default function Sidebar({ user }: { user: User }) {
+export default function Sidebar({ user }: { user: any }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const { signOut } = useClerk();
   const pathname = usePathname();
 
   // Create Folder Modal States
@@ -119,7 +121,7 @@ export default function Sidebar({ user }: { user: User }) {
       setShowModal(false);
       router.refresh();
     } else {
-      alert('Gagal membuat folder');
+      alert('Gagal membuat folder: ' + (error.message || JSON.stringify(error)));
     }
     setSaving(false);
   };
@@ -344,10 +346,9 @@ export default function Sidebar({ user }: { user: User }) {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-    router.refresh();
+    await signOut({ redirectUrl: '/' });
   };
+
 
   const SidebarContent = () => (
     <div className="h-full flex flex-col">
@@ -881,3 +882,4 @@ function SettingsIcon() { return <svg width="16" height="16" viewBox="0 0 24 24"
 function LogoutIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>; }
 function ChatIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>; }
 function ShareIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>; }
+

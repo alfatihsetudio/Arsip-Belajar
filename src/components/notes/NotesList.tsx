@@ -183,12 +183,13 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
       if (sortBy === 'folder') {
         let nameA = a.folder?.name?.toLowerCase() || 'zzz_no_folder';
         let nameB = b.folder?.name?.toLowerCase() || 'zzz_no_folder';
-        if (nameA.startsWith('{')) {
+        if (typeof nameA === 'string' && nameA.startsWith('{')) {
           try { nameA = JSON.parse(nameA).name.toLowerCase(); } catch (e) {}
         }
-        if (nameB.startsWith('{')) {
+        if (typeof nameB === 'string' && nameB.startsWith('{')) {
           try { nameB = JSON.parse(nameB).name.toLowerCase(); } catch (e) {}
         }
+
         if (nameA < nameB) return -1;
         if (nameA > nameB) return 1;
         // Fallback to newest if in the same folder
@@ -342,13 +343,13 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
                             📁 Semua Folder
                           </button>
                           {folders.map(f => {
-                            let displayName = f.name;
+                            let displayName = f.name || 'Folder Tanpa Nama';
                             let color = '';
                             let emoji = '📁';
-                            if (f.name && f.name.startsWith('{')) {
+                            if (f.name && typeof f.name === 'string' && f.name.startsWith('{')) {
                               try {
                                 const parsed = JSON.parse(f.name);
-                                displayName = parsed.name;
+                                displayName = parsed.name || displayName;
                                 color = parsed.color || '';
                                 emoji = parsed.emoji || '📁';
                               } catch (err) {}
@@ -525,17 +526,17 @@ export default function NotesList({ initialNotes, q, folder, folders, hideFolder
                       className="text-[9px] sm:text-xs font-semibold px-1.5 py-0.5 rounded-md truncate max-w-full inline-block self-start"
                       style={(() => {
                         let color = '';
-                        if (note.folder.name.startsWith('{')) {
+                        if (note.folder.name && note.folder.name.startsWith('{')) {
                           try { color = JSON.parse(note.folder.name).color; } catch (e) {}
                         }
                         return color ? { backgroundColor: `${color}15`, color: color } : { backgroundColor: 'var(--surface-2)', color: 'var(--text-muted)' };
                       })()}
                     >
                       {(() => {
-                        if (note.folder.name.startsWith('{')) {
+                        if (note.folder.name && note.folder.name.startsWith('{')) {
                           try { return JSON.parse(note.folder.name).name; } catch (e) {}
                         }
-                        return note.folder.name;
+                        return note.folder.name || 'Folder Tanpa Nama';
                       })()}
                     </span>
                   ) : (

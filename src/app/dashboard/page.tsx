@@ -1,39 +1,64 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import Link from 'next/link';
 import NotesList from '@/components/notes/NotesList';
+import pool from '@/lib/db';
 
 export default async function DashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; folder?: string; tag?: string }>;
 }) {
-  const { q, folder, tag } = await searchParams;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return null; // Next middleware should handle redirect
-  }
+  const { q, folder } = await searchParams;
+  const { userId } = await auth();
+  if (!userId) return null;
 
-  let query = supabase
-    .from('notes')
-    .select(`
-      id, title, transcribed_text, created_at,
-      folder:folders(id, name),
-      note_media(media_url, order_index)
-    `)
-    .eq('user_id', user.id)
-    .not('title', 'like', '💬 Riwayat Obrolan:%')
-    .order('created_at', { ascending: false });
+  // Build notes query
+  const params: unknown[] = [userId];
+  let whereExtra = '';
 
   if (q) {
-    // Escape double quotes and wrap in double quotes to safely handle commas and spaces
-    const safeQ = q.replace(/"/g, '""');
-    query = query.or(`title.ilike."%${safeQ}%",transcribed_text.ilike."%${safeQ}%"`);
+    params.push(`%${q}%`);
+    whereExtra += ` AND (n.title ILIKE $${params.length} OR n.transcribed_text ILIKE $${params.length})`;
+    params.push(`%${q}%`);
+    whereExtra = ` AND (n.title ILIKE $2 OR n.transcribed_text ILIKE $2)`;
+    params.length = 2; // reset to 2 params
   }
 
-  const { data: notes } = await query;
-  const { data: folders } = await supabase.from('folders').select('id, name').eq('user_id', user.id).order('name');
+  if (folder) {
+    params.push(folder);
+    whereExtra += ` AND n.folder_id = $${params.length}`;
+  }
+
+  const notesRes = await pool.query(
+    `SELECT
+       n.id, n.title, n.transcribed_text, n.created_at,
+       CASE WHEN f.id IS NOT NULL
+         THEN json_build_object('id', f.id, 'name', f.name)
+         ELSE NULL
+       END AS folder,
+       COALESCE(
+         json_agg(json_build_object('media_url', nm.media_url, 'order_index', nm.order_index)
+           ORDER BY nm.order_index)
+         FILTER (WHERE nm.media_url IS NOT NULL), '[]'
+       ) AS note_media
+     FROM public.notes n
+     LEFT JOIN public.folders f ON f.id = n.folder_id
+     LEFT JOIN public.note_media nm ON nm.note_id = n.id
+     WHERE n.user_id = $1
+       AND n.title NOT LIKE '💬 Riwayat Obrolan:%'
+       ${whereExtra}
+     GROUP BY n.id, f.id
+     ORDER BY n.created_at DESC`,
+    params
+  );
+
+  const foldersRes = await pool.query(
+    `SELECT id, name FROM public.folders WHERE user_id = $1 ORDER BY name`,
+    [userId]
+  );
+
+  const notes = notesRes.rows;
+  const folders = foldersRes.rows;
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 animate-fadeIn">
@@ -70,7 +95,7 @@ export default async function DashboardPage({
       </form>
 
       {/* Notes Grid with Sorting & Folder Filter */}
-      <NotesList initialNotes={(notes as any[]) || []} q={q} folder={folder} folders={folders || []} />
+      <NotesList initialNotes={notes} q={q} folder={folder} folders={folders} />
     </div>
   );
 }

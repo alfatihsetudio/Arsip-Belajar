@@ -36,28 +36,32 @@ export const viewport: Viewport = {
   themeColor: "#fafafa",
 };
 
+import { ClerkProvider } from '@clerk/nextjs';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`} suppressHydrationWarning>
       <head />
       <body className="h-full">
-        <ConsoleErrorSuppressor />
-        <Script
-          id="theme-logic"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark')
-                } else {
-                  document.documentElement.classList.remove('dark')
-                }
-              } catch (_) {}
-            `
-          }}
-        />
-        {children}
+        <ClerkProvider>
+          <ConsoleErrorSuppressor />
+          <Script
+            id="theme-logic"
+            strategy="beforeInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                try {
+                  if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark')
+                  } else {
+                    document.documentElement.classList.remove('dark')
+                  }
+                } catch (_) {}
+              `
+            }}
+          />
+          {children}
+        </ClerkProvider>
       </body>
     </html>
   );

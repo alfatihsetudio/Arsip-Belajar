@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+
 
 interface Folder {
   id: string;
@@ -45,7 +45,6 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -64,10 +63,15 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
     if (!folderId) return 'Tanpa Folder (Root)';
     const folder = folders.find(f => f.id === folderId);
     if (!folder) return 'Tanpa Folder (Root)';
-    if (folder.name.startsWith('{')) {
-      try { return JSON.parse(folder.name).name || folder.name; } catch { return folder.name; }
+    let displayName = folder.name || 'Folder Tanpa Nama';
+    if (folder.name && typeof folder.name === 'string' && folder.name.startsWith('{')) {
+      try {
+        displayName = JSON.parse(folder.name).name || displayName;
+      } catch {
+        return folder.name;
+      }
     }
-    return folder.name;
+    return displayName;
   };
 
   const addImages = useCallback((files: FileList | File[]) => {
@@ -201,43 +205,35 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
     try {
       const compressedFiles = await Promise.all(images.map(img => compressImage(img.file)));
 
-      setProgress('Checking quota & uploading direct...');
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Anda harus login terlebih dahulu.');
+      setProgress('Mengupload media ke server...');
 
-      const { data: profile } = await supabase.from('profiles').select('storage_used, subscription_tier').eq('id', user.id).single();
-      const quota = profile?.subscription_tier === 'free' ? 100 * 1024 * 1024 : profile?.subscription_tier === 'premium_1' ? 1024 * 1024 * 1024 : 3 * 1024 * 1024 * 1024;
-      const totalUploadSize = compressedFiles.reduce((acc, f) => acc + f.size, 0) + (audioFile ? audioFile.size : 0);
-      
-      if ((profile?.storage_used || 0) + totalUploadSize > quota) {
-         throw new Error('Penyimpanan penuh! Silakan hapus catatan lama atau upgrade ke Premium.');
+      // Upload semua file ke R2 melalui server (menghindari masalah CORS)
+      const uploadForm = new FormData();
+      for (const file of compressedFiles) {
+        uploadForm.append('file', file);
       }
-
-      // Direct Upload to Supabase (Bypass Vercel 4.5MB limit)
-      const imagePaths = [];
-      for (let i = 0; i < compressedFiles.length; i++) {
-        const file = compressedFiles[i];
-        const ext = file.name.split('.').pop() || 'jpg';
-        const fileName = `${user.id}/${Date.now()}-${i}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, file, { contentType: file.type });
-        if (uploadError) throw new Error('Gagal mengupload gambar: ' + uploadError.message);
-        imagePaths.push(fileName);
-      }
-
-      let audioPath = null;
       if (audioFile) {
-        setProgress('Uploading audio...');
-        const ext = audioFile.name.split('.').pop() || 'mp3';
-        const fileName = `${user.id}/${Date.now()}-audio.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, audioFile, { contentType: audioFile.type });
-        if (uploadError) throw new Error('Gagal mengupload audio: ' + uploadError.message);
-        audioPath = fileName;
+        uploadForm.append('file', audioFile);
       }
 
-      setProgress('Processing with AI (Mohon tunggu)...');
-      
-      // Send paths to API instead of full files
+      const uploadRes = await fetch('/api/upload-media', { method: 'POST', body: uploadForm });
+      if (!uploadRes.ok) {
+        const errJson = await uploadRes.json().catch(() => ({}));
+        throw new Error(errJson.error || `Upload gagal (${uploadRes.status})`);
+      }
+      const { data: uploadedFiles } = await uploadRes.json();
+
+      const imagePaths: string[] = uploadedFiles
+        .slice(0, compressedFiles.length)
+        .map((f: { key: string }) => f.key);
+
+      const audioPath: string | null = audioFile
+        ? uploadedFiles[compressedFiles.length]?.key ?? null
+        : null;
+
+      setProgress('Memproses dengan AI (Mohon tunggu)...');
+
+      // Kirim paths ke /api/transcribe untuk diproses AI
       const formData = new FormData();
       formData.append('title', title.trim());
       if (folderId) formData.append('folder_id', folderId);
@@ -332,7 +328,7 @@ export default function UploadForm({ folders, initialFolderId }: UploadFormProps
                 Tanpa Folder (Root)
               </button>
               {folders.map(f => {
-                const folderName = f.name.startsWith('{') ? (() => { try { return JSON.parse(f.name).name || f.name; } catch { return f.name; } })() : f.name;
+                const folderName = (f.name && typeof f.name === 'string' && f.name.startsWith('{')) ? (() => { try { return JSON.parse(f.name).name || f.name; } catch { return f.name; } })() : (f.name || 'Folder Tanpa Nama');
                 return (
                   <button key={f.id} type="button" onClick={() => { setFolderId(f.id); setIsFolderDropdownOpen(false); }} className={`w-full text-left px-4 py-2 text-sm font-semibold transition-colors cursor-pointer hover:bg-[var(--surface-2)] ${folderId === f.id ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'}`}>
                     {folderName}

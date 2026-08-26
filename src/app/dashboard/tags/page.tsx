@@ -1,38 +1,42 @@
-import { createClient } from '@/lib/supabase/server';
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
+import pool from '@/lib/db';
 import TagChip from '@/components/tags/TagChip';
 
 export default async function TagsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
-  const { data: tags } = await supabase
-    .from('tags')
-    .select(`
-      id, name, created_at,
-      note_tags(note_id)
-    `)
-    .eq('user_id', user.id)
-    .order('name');
+  const tagsRes = await pool.query(
+    `SELECT t.id, t.name, t.created_at,
+       COALESCE(json_agg(json_build_object('note_id', nt.note_id)) FILTER (WHERE nt.note_id IS NOT NULL), '[]') AS note_tags
+     FROM public.tags t
+     LEFT JOIN public.note_tags nt ON nt.tag_id = t.id
+     WHERE t.user_id = $1
+     GROUP BY t.id
+     ORDER BY t.name`,
+    [userId]
+  );
 
-  // Server Action to create tag
   async function createTag(formData: FormData) {
     'use server';
     const name = formData.get('name') as string;
     if (!name?.trim()) return;
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const { userId } = await auth();
+    if (!userId) return;
 
-    await supabase.from('tags').insert({
-      name: name.trim().toLowerCase(),
-      user_id: user.id
-    });
-    
+    await pool.query(
+      `INSERT INTO public.tags (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [userId, name.trim().toLowerCase()]
+    );
+
     redirect('/dashboard/tags');
   }
+
+  const tags = tagsRes.rows;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
@@ -54,7 +58,7 @@ export default async function TagsPage() {
       </form>
 
       {/* Tags List */}
-      {!tags || tags.length === 0 ? (
+      {tags.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-[var(--border)] rounded-2xl">
           <p className="text-[var(--text-secondary)] font-medium">No tags created yet</p>
           <p className="text-xs text-[var(--text-muted)] mt-1">Categorize your notes with tags</p>

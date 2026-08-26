@@ -44,8 +44,8 @@ export async function POST(
     }
 
     // 2. Determine new folder name
-    let newFolderName = folder.name;
-    if (folder.name.startsWith('{')) {
+    let newFolderName = folder.name || 'Folder Tanpa Nama';
+    if (folder.name && folder.name.startsWith('{')) {
       try {
         const parsed = JSON.parse(folder.name);
         parsed.name = (parsed.name || 'Folder') + ' (Salinan)';
@@ -54,7 +54,7 @@ export async function POST(
         newFolderName = folder.name + ' (Salinan)';
       }
     } else {
-      newFolderName = folder.name + ' (Salinan)';
+      newFolderName = (folder.name || 'Folder') + ' (Salinan)';
     }
 
     // 3. Create duplicated folder

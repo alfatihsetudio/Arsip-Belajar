@@ -37,7 +37,7 @@ export async function POST(
     }
 
     // Call Gemini API to generate Flashcards
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
     const prompt = `Anda adalah asisten edukasi ahli. Berdasarkan catatan pelajaran berikut, buatlah kumpulan 5 sampai 8 flashcards (kartu hafalan tanya jawab) yang sangat efektif untuk membantu siswa menghafal dan menguji pemahaman materi ini.
     
     Format keluaran harus berupa string JSON array objek murni, tanpa pembungkus markdown block, tanpa penjelasan pembuka atau penutup. 

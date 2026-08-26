@@ -39,7 +39,7 @@ export async function POST(
     }
 
     // 2. Process summary using Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
     const prompt = `You are an expert educational designer. 
 Your goal is to deeply analyze the provided note content and extract ONLY the absolute core learning takeaways, high-level concepts, or formulas.
 Do NOT just shorten the text, and do NOT transcribe everything. 

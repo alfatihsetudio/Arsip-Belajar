@@ -1,41 +1,44 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import SettingsClient from '@/components/settings/SettingsClient';
+import pool from '@/lib/db';
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { userId } = await auth();
+  if (!userId) return <div>Silakan login.</div>;
 
-  if (!user) return <div>Silakan login.</div>;
+  const clerkUser = await currentUser();
 
-  // Fetch stats in parallel
-  const [{ count: noteCount }, { count: folderCount }, { data: mediaRows }] = await Promise.all([
-    supabase.from('notes').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-    supabase.from('folders').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-    // Estimate storage from note_media rows — each row linked to user's notes
-    supabase
-      .from('note_media')
-      .select('media_url, notes!inner(user_id)')
-      .eq('notes.user_id', user.id)
-      .limit(1000),
+  const [noteRes, folderRes, mediaRes] = await Promise.all([
+    pool.query(`SELECT COUNT(*) FROM public.notes WHERE user_id = $1`, [userId]),
+    pool.query(`SELECT COUNT(*) FROM public.folders WHERE user_id = $1`, [userId]),
+    pool.query(
+      `SELECT nm.media_url FROM public.note_media nm
+       JOIN public.notes n ON n.id = nm.note_id
+       WHERE n.user_id = $1 LIMIT 1000`,
+      [userId]
+    ),
   ]);
 
-  // Rough estimate: assume ~200KB average per image
-  const estimatedStorageMB = ((mediaRows?.length ?? 0) * 200) / 1024;
+  const estimatedStorageMB = (mediaRes.rows.length * 200) / 1024;
+
+  const email = clerkUser?.emailAddresses.find(
+    (e) => e.id === clerkUser.primaryEmailAddressId
+  )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress ?? '';
 
   return (
     <SettingsClient
       user={{
-        id: user.id,
-        email: user.email ?? '',
-        full_name: user.user_metadata?.full_name ?? '',
-        avatar_url: user.user_metadata?.avatar_url ?? '',
-        created_at: user.created_at,
-        provider: user.app_metadata?.provider ?? 'google',
-        education_level: user.user_metadata?.education_level ?? '',
+        id: userId,
+        email,
+        full_name: clerkUser?.fullName ?? clerkUser?.firstName ?? '',
+        avatar_url: clerkUser?.imageUrl ?? '',
+        created_at: clerkUser?.createdAt ? new Date(clerkUser.createdAt).toISOString() : '',
+        provider: 'google',
+        education_level: '',
       }}
       stats={{
-        noteCount: noteCount ?? 0,
-        folderCount: folderCount ?? 0,
+        noteCount: parseInt(noteRes.rows[0].count, 10),
+        folderCount: parseInt(folderRes.rows[0].count, 10),
         storageMB: estimatedStorageMB,
       }}
     />

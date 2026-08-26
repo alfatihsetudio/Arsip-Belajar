@@ -1,6 +1,7 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import FoldersContainer from '@/components/folders/FoldersContainer';
+import pool from '@/lib/db';
 
 export default async function FoldersPage({
   searchParams,
@@ -8,28 +9,31 @@ export default async function FoldersPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q } = await searchParams;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
-  let query = supabase
-    .from('folders')
-    .select(`
-      id, name, created_at,
-      notes:notes(id)
-    `)
-    .eq('user_id', user.id)
-    .order('name');
-
+  const params: unknown[] = [userId];
+  let whereExtra = '';
   if (q?.trim()) {
-    query = query.ilike('name', `%${q.trim()}%`);
+    params.push(`%${q.trim()}%`);
+    whereExtra = `AND f.name ILIKE $2`;
   }
 
-  const { data: folders } = await query;
+  const foldersRes = await pool.query(
+    `SELECT
+       f.id, f.name, f.created_at,
+       COALESCE(json_agg(json_build_object('id', n.id)) FILTER (WHERE n.id IS NOT NULL), '[]') AS notes
+     FROM public.folders f
+     LEFT JOIN public.notes n ON n.folder_id = f.id
+     WHERE f.user_id = $1 ${whereExtra}
+     GROUP BY f.id
+     ORDER BY f.name`,
+    params
+  );
 
   return (
     <div className="max-w-5xl mx-auto animate-fadeIn">
-      <FoldersContainer initialFolders={folders || []} q={q} userId={user.id} />
+      <FoldersContainer initialFolders={foldersRes.rows} q={q} userId={userId} />
     </div>
   );
 }

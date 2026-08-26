@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import ReactMarkdown from 'react-markdown';
+
 import ShareModal from '@/components/notes/ShareModal';
 
 interface Message {
@@ -56,7 +56,7 @@ export default function AIChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const supabase = createClient();
+
 
   useEffect(() => {
     loadSessions();
@@ -76,65 +76,30 @@ export default function AIChatPage() {
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Anda harus login terlebih dahulu');
-
-      // Find if this session is already exported as a note
       const sessionTitle = sessions.find(s => s.id === currentSessionId)?.title || 'Obrolan AI';
-      const noteTitle = `💬 Riwayat Obrolan: ${sessionTitle}`;
-
-      const { data: existingNote } = await supabase
-        .from('notes')
-        .select('id, visibility, allowed_emails')
-        .eq('user_id', user.id)
-        .eq('title', noteTitle)
-        .limit(1)
-        .maybeSingle();
-
-      // Format transkrip tanya-jawab yang rapi
-      const formattedTranscript = messages.map(msg => 
+      const formattedTranscript = messages.map(msg =>
         `### ${msg.role === 'user' ? '🙋‍♂️ Pengguna' : '🤖 Asisten AI'}\n${msg.content}\n`
       ).join('\n---\n\n');
 
-      if (existingNote) {
-        // Update existing note transcript content
-        await supabase
-          .from('notes')
-          .update({ transcribed_text: formattedTranscript })
-          .eq('id', existingNote.id);
+      // Use API route to upsert the chat history note
+      const res = await fetch('/api/ai/share-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionTitle, transcript: formattedTranscript }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal memproses');
 
-        setSharingNoteId(existingNote.id);
-        setSharingNotesInfo({
-          visibility: (existingNote.visibility as any) || 'private',
-          allowed_emails: existingNote.allowed_emails || []
-        });
-        setIsShareModalOpen(true);
-      } else {
-        // Create new note
-        const { data: newNote, error: createError } = await supabase
-          .from('notes')
-          .insert({
-            user_id: user.id,
-            title: noteTitle,
-            transcribed_text: formattedTranscript,
-            visibility: 'private',
-            allowed_emails: []
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-
-        setSharingNoteId(newNote.id);
-        setSharingNotesInfo({ visibility: 'private', allowed_emails: [] });
-        setIsShareModalOpen(true);
-      }
+      setSharingNoteId(data.noteId);
+      setSharingNotesInfo({ visibility: data.visibility || 'private', allowed_emails: data.allowedEmails || [] });
+      setIsShareModalOpen(true);
     } catch (err: any) {
       alert('Gagal memproses berbagi obrolan: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleRenameSession = async (id: string) => {
     if (!editTitle.trim()) {
@@ -207,40 +172,36 @@ export default function AIChatPage() {
   };
 
   const fetchNotes = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const [{ data: notesData }, { data: foldersData }] = await Promise.all([
-      supabase
-        .from('notes')
-        .select('id, title, transcribed_text, folder_id, folder:folders(id, name)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('folders')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .order('name')
-    ]);
-    if (notesData) {
-      setNotes(notesData.map((n: any) => ({
-        id: n.id,
-        title: n.title,
-        transcribed_text: n.transcribed_text,
-        folder_id: n.folder_id,
-        folder: Array.isArray(n.folder) ? n.folder[0] : n.folder
-      })) as Note[]);
-    }
-    // Smart-parse: folder name might be a JSON string (legacy) or a plain string (new)
-    if (foldersData) {
-      setFolders(foldersData.map((f: any) => {
-        let name = f.name;
-        if (typeof name === 'string' && name.trim().startsWith('{')) {
-          try { name = JSON.parse(name).name; } catch { /* fallback below */ }
-        }
-        return { id: String(f.id), name: String(name ?? f.id) };
-      }));
+    try {
+      const [notesRes, foldersRes] = await Promise.all([
+        fetch('/api/note/list'),
+        fetch('/api/folder/list'),
+      ]);
+      if (notesRes.ok) {
+        const { notes: notesData } = await notesRes.json();
+        setNotes((notesData || []).map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          transcribed_text: n.transcribed_text,
+          folder_id: n.folder_id,
+          folder: n.folder
+        })));
+      }
+      if (foldersRes.ok) {
+        const { folders: foldersData } = await foldersRes.json();
+        setFolders((foldersData || []).map((f: any) => {
+          let name = f.name;
+          if (typeof name === 'string' && name.trim().startsWith('{')) {
+            try { name = JSON.parse(name).name; } catch { /* fallback */ }
+          }
+          return { id: String(f.id), name: String(name ?? f.id) };
+        }));
+      }
+    } catch (e) {
+      console.error('fetchNotes failed:', e);
     }
   };
+
 
   const handleSendMessage = async (textToSend: string) => {
     if (!textToSend.trim() || loading) return;

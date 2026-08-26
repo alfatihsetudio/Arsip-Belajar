@@ -37,7 +37,7 @@ export async function POST(
     }
 
     // Prompt Gemini for Mind Map structure
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
     const prompt = `Anda adalah seorang desainer kurikulum edukasi. Ubah catatan pelajaran di bawah ini menjadi struktur Peta Pikiran (Mind Map) hierarkis yang logis untuk membantu siswa memvisualisasikan konsep.
     
     Output harus berupa string JSON objek murni yang memuat tree node dengan format:

@@ -18,11 +18,6 @@ const COLOR_OPTIONS = [
 ];
 
 export default function FoldersContainer({ initialFolders, q, userId }: { initialFolders: any[]; q?: string; userId: string }) {
-  const [showModal, setShowModal] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [color, setColor] = useState('');
-  const [saving, setSaving] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -31,52 +26,6 @@ export default function FoldersContainer({ initialFolders, q, userId }: { initia
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isBulkShareOpen, setIsBulkShareOpen] = useState(false);
-
-  useEffect(() => {
-    const handleOpenModal = () => {
-      setShowModal(true);
-    };
-    window.addEventListener('open-create-folder-modal', handleOpenModal);
-    return () => {
-      window.removeEventListener('open-create-folder-modal', handleOpenModal);
-    };
-  }, []);
-
-  const handleCreateFolder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    setSaving(true);
-
-    // Store as JSON string in the 'name' field
-    const folderNameJson = JSON.stringify({
-      name: name.trim(),
-      description: description.trim(),
-      color: color
-    });
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setSaving(false);
-      return;
-    }
-
-    const { error } = await supabase.from('folders').insert({
-      name: folderNameJson,
-      user_id: user.id
-    });
-
-    if (!error) {
-      setName('');
-      setDescription('');
-      setColor('');
-      setShowModal(false);
-      router.refresh();
-    } else {
-      alert('Gagal membuat folder');
-    }
-    setSaving(false);
-  };
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
@@ -121,11 +70,13 @@ export default function FoldersContainer({ initialFolders, q, userId }: { initia
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">My Folders</h1>
         <button
           type="button"
-          onClick={() => setShowModal(true)}
-          className="hidden sm:flex items-center gap-2 bg-[var(--accent)] text-[var(--accent-fg)] px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90 transition-all active:scale-95 cursor-pointer shadow-sm"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('open-create-folder-modal'));
+          }}
+          className="flex items-center gap-2 bg-[var(--accent)] text-[var(--accent-fg)] px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold hover:opacity-90 transition-all active:scale-95 cursor-pointer shadow-sm z-10"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Folder
+          <span>Folder Baru</span>
         </button>
       </div>
 

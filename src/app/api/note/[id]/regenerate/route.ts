@@ -70,7 +70,7 @@ export async function POST(
     }
 
     // 3. Process with Gemini using the new prioritizing prompt
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
     const prompt = `You are an expert educational notes transcriber. 
 Understand the material from the whiteboard/images deeply. Do NOT transcribe strictly chronologically or spatially (e.g., left to right, top to bottom) if that doesn't make educational sense.
 Instead, understand the whiteboard content, analyze the topic, and write the notes structured by educational priority:
