@@ -1,39 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
 
     // Verify session belongs to user
-    const { data: session, error: sessionError } = await supabase
-      .from('ai_chat_sessions')
-      .select('*')
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .single();
+    const sessionRes = await pool.query(
+      'SELECT * FROM public.ai_chat_sessions WHERE id = $1 AND user_id = $2 LIMIT 1',
+      [id, userId]
+    );
 
-    if (sessionError || !session) {
+    if (sessionRes.rows.length === 0) {
       return NextResponse.json({ error: 'Sesi obrolan tidak ditemukan' }, { status: 404 });
     }
 
     // Fetch messages
-    const { data: messages, error: messagesError } = await supabase
-      .from('ai_chat_messages')
-      .select('id, role, content, created_at')
-      .eq('session_id', id)
-      .order('created_at', { ascending: true });
+    const messagesRes = await pool.query(
+      'SELECT id, role, content, created_at FROM public.ai_chat_messages WHERE session_id = $1 ORDER BY created_at ASC',
+      [id]
+    );
 
-    if (messagesError) throw messagesError;
-
-    return NextResponse.json({ session, messages });
+    return NextResponse.json({ session: sessionRes.rows[0], messages: messagesRes.rows });
   } catch (err: any) {
     console.error('API GET Session Details Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -42,23 +37,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
 
-    // Ensure it belongs to the user and delete
-    const { error } = await supabase
-      .from('ai_chat_sessions')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
-
-    if (error) throw error;
+    // Delete messages and session
+    await pool.query('DELETE FROM public.ai_chat_messages WHERE session_id = $1', [id]);
+    await pool.query(
+      'DELETE FROM public.ai_chat_sessions WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
@@ -69,10 +61,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -84,13 +75,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Judul tidak boleh kosong' }, { status: 400 });
     }
 
-    const { error } = await supabase
-      .from('ai_chat_sessions')
-      .update({ title: title.trim() })
-      .eq('id', id)
-      .eq('user_id', user.id);
-
-    if (error) throw error;
+    await pool.query(
+      'UPDATE public.ai_chat_sessions SET title = $1 WHERE id = $2 AND user_id = $3',
+      [title.trim(), id, userId]
+    );
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

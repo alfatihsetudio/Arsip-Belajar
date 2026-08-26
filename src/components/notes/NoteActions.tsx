@@ -47,15 +47,17 @@ export default function NoteActions({
 
       // Fetch all media associated with this note to delete them from Storage
       const { data: mediaFiles } = await supabase.from('note_media').select('media_url').eq('note_id', noteId);
-      
       if (mediaFiles && mediaFiles.length > 0) {
         const filePaths = mediaFiles.map(m => {
           try {
             const urlObj = new URL(m.media_url);
-            const pathParts = urlObj.pathname.split('/media/');
-            if (pathParts.length > 1) return pathParts[1];
-          } catch(e) {}
-          return null;
+            if (urlObj.pathname.includes('/media/')) {
+              return urlObj.pathname.split('/media/')[1];
+            }
+            return urlObj.pathname.replace(/^\/+/, '');
+          } catch(e) {
+            return m.media_url?.replace(/^\/+/, '');
+          }
         }).filter(Boolean) as string[];
 
         if (filePaths.length > 0) {

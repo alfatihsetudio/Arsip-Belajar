@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseNoteContent } from '@/lib/utils/flashcardHelper';
 
@@ -11,10 +12,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -25,21 +25,19 @@ export async function POST(
     }
 
     // Fetch note text
-    const { data: note, error: fetchError } = await supabase
-      .from('notes')
-      .select('transcribed_text')
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .single();
+    const noteRes = await pool.query(
+      'SELECT transcribed_text FROM public.notes WHERE id = $1 AND user_id = $2 LIMIT 1',
+      [id, userId]
+    );
 
-    if (fetchError || !note) {
+    if (noteRes.rows.length === 0) {
       return NextResponse.json({ error: 'Catatan tidak ditemukan' }, { status: 404 });
     }
 
-    const { textContent } = parseNoteContent(note.transcribed_text);
+    const { textContent } = parseNoteContent(noteRes.rows[0].transcribed_text);
 
     // Call Gemini API
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
 
     // Format chat history for prompt
     const formattedHistory = (history || [])
@@ -48,20 +46,20 @@ export async function POST(
 
     const prompt = `Anda adalah asisten belajar pribadi yang ramah dan cerdas. Tugas Anda adalah berdiskusi dengan siswa dan menjawab pertanyaan mereka berdasarkan materi catatan di bawah ini.
     
-    ATURAN JAWABAN:
-    - Jawab secara ringkas, padat, mudah dipahami siswa, dan ramah.
-    - Gunakan bahasa Indonesia.
-    - Jawab HANYA berdasarkan materi catatan yang diberikan. Jika pertanyaan siswa tidak ada kaitannya dengan catatan, ingatkan mereka secara halus untuk bertanya mengenai materi catatan ini saja.
-    - Keluarkan hasil dalam teks biasa, jangan gunakan format markdown yang tebal seperti #, **, atau tabel. Gunakan bahasa yang natural.
-    
-    Catatan Siswa:
-    ${textContent}
-    
-    Riwayat Percakapan Sebelumnya:
-    ${formattedHistory}
-    
-    Pertanyaan Siswa Terbaru:
-    ${message}`;
+ATURAN JAWABAN:
+- Jawab secara ringkas, padat, mudah dipahami siswa, dan ramah.
+- Gunakan bahasa Indonesia.
+- Jawab HANYA berdasarkan materi catatan yang diberikan. Jika pertanyaan siswa tidak ada kaitannya dengan catatan, ingatkan mereka secara halus untuk bertanya mengenai materi catatan ini saja.
+- Keluarkan hasil dalam teks biasa, jangan gunakan format markdown yang tebal seperti #, **, atau tabel. Gunakan bahasa yang natural.
+
+Catatan Siswa:
+${textContent}
+
+Riwayat Percakapan Sebelumnya:
+${formattedHistory}
+
+Pertanyaan Siswa Terbaru:
+${message}`;
 
     const result = await model.generateContent(prompt);
     const reply = result.response.text().trim();

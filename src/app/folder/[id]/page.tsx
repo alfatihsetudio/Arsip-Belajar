@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import pool from '@/lib/db';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -11,13 +12,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const { data: folder } = await supabase
-    .from('folders')
-    .select('name')
-    .eq('id', id)
-    .single();
+  const folderRes = await pool.query('SELECT name FROM public.folders WHERE id = $1 LIMIT 1', [id]);
+  const folder = folderRes.rows[0];
 
   const folderInfo = parseFolderInfo(folder?.name || 'Folder');
 
@@ -43,24 +39,20 @@ export default async function PublicFolderPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
+  const { userId } = await auth();
+  const clerkUser = userId ? await currentUser() : null;
+  const userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || '';
 
-  const { data: folder, error } = await supabase
-    .from('folders')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error || !folder) {
+  const folderRes = await pool.query('SELECT * FROM public.folders WHERE id = $1 LIMIT 1', [id]);
+  if (folderRes.rows.length === 0) {
     notFound();
   }
+  const folder = folderRes.rows[0];
 
-  const { data: { user } } = await supabase.auth.getUser();
-  const isGuest = !user;
-
+  const isGuest = !userId;
   const visibility = folder.visibility || 'private';
   const allowedEmails = folder.allowed_emails || [];
-  const isOwner = user?.id === folder.user_id;
+  const isOwner = userId === folder.user_id;
 
   if (!isOwner) {
     let accessGranted = true;
@@ -68,7 +60,7 @@ export default async function PublicFolderPage({
     if (visibility === 'private') {
       accessGranted = false;
     } else if (visibility === 'restricted') {
-      if (isGuest || !allowedEmails.includes(user.email || '')) {
+      if (isGuest || !allowedEmails.includes(userEmail)) {
         accessGranted = false;
       }
     }
@@ -92,23 +84,26 @@ export default async function PublicFolderPage({
 
   const { displayName, description, color, emoji } = parseFolderInfo(folder.name);
 
-  const { data: notes } = await supabase
-    .from('notes')
-    .select(`
-      id, title, transcribed_text, created_at,
-      note_media(media_url, order_index)
-    `)
-    .eq('folder_id', id)
-    .order('created_at', { ascending: false });
+  const notesRes = await pool.query(
+    `SELECT n.id, n.title, n.transcribed_text, n.created_at,
+       COALESCE(json_agg(json_build_object('media_url', nm.media_url, 'order_index', nm.order_index)) FILTER (WHERE nm.id IS NOT NULL), '[]') AS note_media
+     FROM public.notes n
+     LEFT JOIN public.note_media nm ON nm.note_id = n.id
+     WHERE n.folder_id = $1
+     GROUP BY n.id
+     ORDER BY n.created_at DESC`,
+    [id]
+  );
+  const notes = notesRes.rows;
 
   // Auto-save folder to user's shared folders history
-  if (!isOwner && user) {
-    supabase
-      .from('shared_folders_history')
-      .upsert({ user_id: user.id, folder_id: id, created_at: new Date().toISOString() }, { onConflict: 'user_id,folder_id' })
-      .then(({ error: histErr }) => {
-        if (histErr) console.error('Failed to log shared folders history', histErr);
-      });
+  if (!isOwner && userId) {
+    pool.query(
+      `INSERT INTO public.shared_folders_history (user_id, folder_id, created_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id, folder_id) DO NOTHING`,
+      [userId, id]
+    ).catch(e => console.error('Failed to log shared folders history', e));
   }
 
   // Format date helper: HH:MM, DD Month YYYY
@@ -140,17 +135,17 @@ export default async function PublicFolderPage({
           <span className="text-[var(--border)] select-none flex-shrink-0">|</span>
 
           {/* User avatar + name */}
-          {user && (
+          {clerkUser && (
             <div className="flex items-center gap-1.5 min-w-0 flex-1">
-              {user.user_metadata?.avatar_url ? (
-                <img src={user.user_metadata.avatar_url} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
+              {clerkUser.imageUrl ? (
+                <img src={clerkUser.imageUrl} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
               ) : (
                 <div className="w-5 h-5 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center text-[9px] font-bold flex-shrink-0">
-                  {(user.email || 'U')[0].toUpperCase()}
+                  {(userEmail || 'U')[0].toUpperCase()}
                 </div>
               )}
               <span className="text-[11px] text-[var(--text-secondary)] truncate hidden sm:block">
-                {user.user_metadata?.full_name || user.email}
+                {clerkUser.fullName || userEmail}
               </span>
             </div>
           )}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 
 export async function POST(
   req: NextRequest,
@@ -7,134 +8,124 @@ export async function POST(
 ) {
   try {
     const { id: originalNoteId } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const clerkUser = await currentUser();
+    const userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || '';
 
     const { folderId } = await req.json();
 
     if (folderId) {
       // Verify the user owns the target folder
-      const { data: folderCheck } = await supabase.from('folders').select('id').eq('id', folderId).eq('user_id', user.id).single();
-      if (!folderCheck) {
+      const folderCheck = await pool.query(
+        'SELECT id FROM public.folders WHERE id = $1 AND user_id = $2 LIMIT 1',
+        [folderId, userId]
+      );
+      if (folderCheck.rows.length === 0) {
         return NextResponse.json({ error: 'Folder access denied' }, { status: 403 });
       }
     }
 
     // 1. Fetch original note
-    const { data: note, error: noteError } = await supabase
-      .from('notes')
-      .select('title, transcribed_text, visibility, allowed_emails, folders(visibility, allowed_emails)')
-      .eq('id', originalNoteId)
-      .single();
+    const noteRes = await pool.query(
+      `SELECT n.title, n.transcribed_text, n.visibility, n.allowed_emails, n.user_id,
+              f.visibility AS folder_visibility, f.allowed_emails AS folder_allowed_emails
+       FROM public.notes n
+       LEFT JOIN public.folders f ON f.id = n.folder_id
+       WHERE n.id = $1 LIMIT 1`,
+      [originalNoteId]
+    );
 
-    if (noteError || !note) {
+    if (noteRes.rows.length === 0) {
       return NextResponse.json({ error: 'Catatan asli tidak ditemukan' }, { status: 404 });
     }
 
-    // Check if user is allowed to access original note (to prevent unauthorized duplication)
+    const note = noteRes.rows[0];
+
+    // Check if user is allowed to access original note
     let visibility = note.visibility || 'private';
     let allowedEmails = note.allowed_emails || [];
     
-    // Check inheritance for duplication auth
-    if (visibility === 'private' && note.folders) {
-      const parentFolder: any = note.folders;
-      if (parentFolder.visibility !== 'private') {
-        visibility = parentFolder.visibility;
-        allowedEmails = parentFolder.allowed_emails || [];
-      }
+    if (visibility === 'private' && note.folder_visibility && note.folder_visibility !== 'private') {
+      visibility = note.folder_visibility;
+      allowedEmails = note.folder_allowed_emails || [];
     }
 
-    let accessGranted = true;
-    if (visibility === 'private') {
-      accessGranted = false; // Even if it's private, wait, if the owner is duplicating their own note it's allowed.
-      // But usually duplication is for others. The owner can duplicate too.
+    let accessGranted = note.user_id === userId;
+    if (visibility === 'public') {
+      accessGranted = true;
     } else if (visibility === 'restricted') {
-      if (!allowedEmails.includes(user.email || '')) {
-        accessGranted = false;
+      if (allowedEmails.includes(userEmail)) {
+        accessGranted = true;
       }
     }
 
-    // Wait, let's verify if the user is the owner
-    const { data: originalNoteOwnerCheck } = await supabase.from('notes').select('user_id').eq('id', originalNoteId).single();
-    if (originalNoteOwnerCheck?.user_id !== user.id && !accessGranted) {
+    if (!accessGranted) {
       return NextResponse.json({ error: 'Anda tidak memiliki izin untuk menduplikasi catatan ini' }, { status: 403 });
     }
 
     // 2. Duplicate Note
     const newNoteTitle = note.title + ' (Salinan)';
-    const { data: newNote, error: insertNoteError } = await supabase
-      .from('notes')
-      .insert({
-        user_id: user.id,
-        title: newNoteTitle,
-        transcribed_text: note.transcribed_text,
-        folder_id: folderId || null,
-        visibility: 'private', // Reset visibility for duplicated note
-        allowed_emails: []
-      })
-      .select()
-      .single();
-
-    if (insertNoteError || !newNote) {
-      throw insertNoteError;
-    }
+    const newNoteRes = await pool.query(
+      `INSERT INTO public.notes (user_id, title, transcribed_text, folder_id, visibility, allowed_emails)
+       VALUES ($1, $2, $3, $4, 'private', '{}')
+       RETURNING id`,
+      [userId, newNoteTitle, note.transcribed_text, folderId || null]
+    );
+    const newNote = newNoteRes.rows[0];
 
     // 3. Duplicate Media
-    const { data: mediaFiles } = await supabase.from('note_media').select('*').eq('note_id', originalNoteId);
-    if (mediaFiles && mediaFiles.length > 0) {
-      const mediaInserts = mediaFiles.map(media => ({
-        note_id: newNote.id,
-        media_url: media.media_url,
-        media_type: media.media_type,
-        order_index: media.order_index
-      }));
-      await supabase.from('note_media').insert(mediaInserts);
+    const mediaRes = await pool.query(
+      'SELECT media_url, media_type, order_index FROM public.note_media WHERE note_id = $1',
+      [originalNoteId]
+    );
+    if (mediaRes.rows.length > 0) {
+      for (const media of mediaRes.rows) {
+        await pool.query(
+          'INSERT INTO public.note_media (note_id, media_url, media_type, order_index) VALUES ($1, $2, $3, $4)',
+          [newNote.id, media.media_url, media.media_type, media.order_index]
+        );
+      }
     }
 
     // 4. Duplicate Tags
-    const { data: noteTags } = await supabase.from('note_tags').select('tag_id').eq('note_id', originalNoteId);
-    if (noteTags && noteTags.length > 0) {
-      // First we need to get the tag names of the original note
-      const tagIds = noteTags.map(nt => nt.tag_id);
-      const { data: tags } = await supabase.from('tags').select('name').in('id', tagIds);
-      
-      if (tags && tags.length > 0) {
-        const tagNames = tags.map(t => t.name);
-        
-        // Find existing tags for the current user
-        const { data: existingUserTags } = await supabase
-          .from('tags')
-          .select('id, name')
-          .eq('user_id', user.id)
-          .in('name', tagNames);
-          
-        const existingTagsMap = new Map((existingUserTags || []).map(t => [t.name, t.id]));
-        const tagsToCreate = tagNames.filter(name => !existingTagsMap.has(name));
-        
-        // Create missing tags
-        if (tagsToCreate.length > 0) {
-          const newTagsData = tagsToCreate.map(name => ({
-            name: name,
-            user_id: user.id
-          }));
-          const { data: newlyCreatedTags } = await supabase.from('tags').insert(newTagsData).select('id, name');
-          if (newlyCreatedTags) {
-            newlyCreatedTags.forEach(t => existingTagsMap.set(t.name, t.id));
-          }
+    const noteTagsRes = await pool.query(
+      `SELECT t.name FROM public.note_tags nt
+       JOIN public.tags t ON t.id = nt.tag_id
+       WHERE nt.note_id = $1`,
+      [originalNoteId]
+    );
+
+    if (noteTagsRes.rows.length > 0) {
+      for (const tagRow of noteTagsRes.rows) {
+        const tagName = tagRow.name.trim().toLowerCase();
+        if (!tagName) continue;
+
+        let tagId: string | null = null;
+        const tagCheck = await pool.query(
+          'SELECT id FROM public.tags WHERE name = $1 AND user_id = $2 LIMIT 1',
+          [tagName, userId]
+        );
+
+        if (tagCheck.rows.length > 0) {
+          tagId = tagCheck.rows[0].id;
+        } else {
+          const newTagRes = await pool.query(
+            'INSERT INTO public.tags (name, user_id) VALUES ($1, $2) RETURNING id',
+            [tagName, userId]
+          );
+          tagId = newTagRes.rows[0]?.id;
         }
-        
-        // Link all tags to the new note
-        const finalTagLinks = tagNames.map(name => ({
-          note_id: newNote.id,
-          tag_id: existingTagsMap.get(name)
-        })).filter(link => link.tag_id);
-        
-        if (finalTagLinks.length > 0) {
-          await supabase.from('note_tags').insert(finalTagLinks);
+
+        if (tagId) {
+          await pool.query(
+            'INSERT INTO public.note_tags (note_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [newNote.id, tagId]
+          );
         }
       }
     }

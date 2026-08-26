@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { createClient } from '@/lib/supabase/server';
+import pool from '@/lib/db';
 import { ShareCard, shareCardSize } from '@/lib/og/share-card';
 import { getSharePreviewImageSrc } from '@/lib/og/share-image';
 import { parseFolderInfo } from '@/lib/site';
@@ -15,14 +15,10 @@ export default async function Image({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
   const imageSrc = await getSharePreviewImageSrc();
 
-  const { data: folder } = await supabase
-    .from('folders')
-    .select('name')
-    .eq('id', id)
-    .single();
+  const folderRes = await pool.query('SELECT name FROM public.folders WHERE id = $1 LIMIT 1', [id]);
+  const folder = folderRes.rows[0];
 
   const folderInfo = parseFolderInfo(folder?.name || 'Folder');
 

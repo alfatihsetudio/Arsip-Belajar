@@ -1,8 +1,9 @@
 'use server';
-
-import { createClient } from '@/lib/supabase/server';
+ 
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { revalidatePath } from 'next/cache';
-
+ 
 export async function saveExamResult(data: {
   title: string;
   score: number;
@@ -12,30 +13,27 @@ export async function saveExamResult(data: {
   topics: string;
   correctAnswers: number;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { userId } = await auth();
 
-  if (!user) {
+  if (!userId) {
     throw new Error('Unauthorized');
   }
 
-  const { error } = await supabase
-    .from('exam_results')
-    .insert({
-      user_id: user.id,
-      title: data.title,
-      score: data.score,
-      total_questions: data.totalQuestions,
-      difficulty: data.difficulty,
-      duration_seconds: data.durationSeconds,
-      topics: data.topics,
-      correct_answers: data.correctAnswers,
-    });
-
-  if (error) {
-    console.error('Failed to save exam result:', error);
-    throw new Error('Gagal menyimpan hasil ujian');
-  }
+  await pool.query(
+    `INSERT INTO public.exam_results (
+      user_id, title, score, total_questions, difficulty, duration_seconds, topics, correct_answers
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      userId,
+      data.title,
+      data.score,
+      data.totalQuestions,
+      data.difficulty,
+      data.durationSeconds,
+      data.topics,
+      data.correctAnswers,
+    ]
+  );
 
   // Revalidate to update the dashboard stats and archive
   revalidatePath('/dashboard/exams');

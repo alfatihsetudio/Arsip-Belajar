@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseNoteContent, serializeNoteContent } from '@/lib/utils/flashcardHelper';
 
@@ -11,44 +12,41 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Fetch current note
-    const { data: note, error: fetchError } = await supabase
-      .from('notes')
-      .select('transcribed_text')
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .single();
+    const noteRes = await pool.query(
+      'SELECT transcribed_text FROM public.notes WHERE id = $1 AND user_id = $2 LIMIT 1',
+      [id, userId]
+    );
 
-    if (fetchError || !note) {
+    if (noteRes.rows.length === 0) {
       return NextResponse.json({ error: 'Catatan tidak ditemukan' }, { status: 404 });
     }
 
-    const { textContent } = parseNoteContent(note.transcribed_text);
+    const { textContent, mindmap, summary } = parseNoteContent(noteRes.rows[0].transcribed_text);
 
     if (!textContent.trim()) {
       return NextResponse.json({ error: 'Isi catatan kosong, tidak bisa membuat flashcard' }, { status: 400 });
     }
 
     // Call Gemini API to generate Flashcards
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
     const prompt = `Anda adalah asisten edukasi ahli. Berdasarkan catatan pelajaran berikut, buatlah kumpulan 5 sampai 8 flashcards (kartu hafalan tanya jawab) yang sangat efektif untuk membantu siswa menghafal dan menguji pemahaman materi ini.
     
-    Format keluaran harus berupa string JSON array objek murni, tanpa pembungkus markdown block, tanpa penjelasan pembuka atau penutup. 
-    Contoh format output:
-    [
-      {"q": "Pertanyaan penting 1?", "a": "Jawaban ringkas dan padat 1"},
-      {"q": "Pertanyaan penting 2?", "a": "Jawaban ringkas dan padat 2"}
-    ]
-    
-    Catatan Pelajaran:
-    ${textContent}`;
+Format keluaran harus berupa string JSON array objek murni, tanpa pembungkus markdown block, tanpa penjelasan pembuka atau penutup. 
+Contoh format output:
+[
+  {"q": "Pertanyaan penting 1?", "a": "Jawaban ringkas dan padat 1"},
+  {"q": "Pertanyaan penting 2?", "a": "Jawaban ringkas dan padat 2"}
+]
+
+Catatan Pelajaran:
+${textContent}`;
 
     const result = await model.generateContent(prompt);
     const resultText = result.response.text().trim();
@@ -72,17 +70,12 @@ export async function POST(
     }
 
     // Update note content by appending new flashcards
-    const updatedFullText = serializeNoteContent(textContent, flashcards);
+    const updatedFullText = serializeNoteContent(textContent, flashcards, mindmap, summary);
 
-    const { error: updateError } = await supabase
-      .from('notes')
-      .update({ transcribed_text: updatedFullText })
-      .eq('id', id)
-      .eq('user_id', user.id);
-
-    if (updateError) {
-      return NextResponse.json({ error: 'Gagal menyimpan flashcard ke database' }, { status: 500 });
-    }
+    await pool.query(
+      'UPDATE public.notes SET transcribed_text = $1 WHERE id = $2 AND user_id = $3',
+      [updatedFullText, id, userId]
+    );
 
     return NextResponse.json({ success: true, flashcards });
   } catch (err: any) {

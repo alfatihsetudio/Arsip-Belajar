@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 export const maxDuration = 60;
@@ -8,9 +9,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { noteId, noteIds, count = 5, difficulty = 'sedang' } = await req.json();
 
@@ -18,14 +18,13 @@ export async function POST(req: NextRequest) {
     
     if (noteId) {
       // Quick Review (Single Note)
-      const { data: note } = await supabase
-        .from('notes')
-        .select('title, transcribed_text')
-        .eq('id', noteId)
-        .eq('user_id', user.id)
-        .single();
+      const noteRes = await pool.query(
+        'SELECT title, transcribed_text FROM public.notes WHERE id = $1 AND user_id = $2 LIMIT 1',
+        [noteId, userId]
+      );
 
-      if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+      if (noteRes.rows.length === 0) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+      const note = noteRes.rows[0];
       combinedNotesText = `Title: ${note.title}\nContent:\n${note.transcribed_text}`;
     } else if (noteIds && Array.isArray(noteIds)) {
       // Grand Exam (Multiple Notes)
@@ -36,11 +35,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'You can select up to 10 notes for a Grand Exam' }, { status: 400 });
       }
 
-      const { data: notes } = await supabase
-        .from('notes')
-        .select('title, transcribed_text')
-        .in('id', noteIds)
-        .eq('user_id', user.id);
+      const notesRes = await pool.query(
+        'SELECT title, transcribed_text FROM public.notes WHERE id = ANY($1) AND user_id = $2',
+        [noteIds, userId]
+      );
+
+      const notes = notesRes.rows;
 
       if (!notes || notes.length === 0) {
         return NextResponse.json({ error: 'No notes found' }, { status: 404 });
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     const model = genAI.getGenerativeModel({ 
-      model: 'models/gemini-flash-lite-latest',
+      model: 'gemini-flash-lite-latest',
       generationConfig: {
         responseMimeType: 'application/json',
         maxOutputTokens: 8192,

@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -24,14 +24,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Save user message to database
-    await supabase.from('ai_chat_messages').insert({
-      session_id: sessionId,
-      role: 'user',
-      content: message
-    });
+    await pool.query(
+      'INSERT INTO public.ai_chat_messages (session_id, role, content) VALUES ($1, $2, $3)',
+      [sessionId, 'user', message]
+    );
 
     // Call Gemini API
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
 
     // Format chat history for prompt
     const formattedHistory = (history || [])
@@ -40,26 +39,25 @@ export async function POST(req: NextRequest) {
 
     const prompt = `Anda adalah asisten belajar pribadi yang ramah, santun, asyik, dan sangat cerdas untuk platform 'Arsip Belajar'. Tugas Anda adalah membantu siswa belajar, menjelaskan konsep pelajaran secara sederhana, memotivasi mereka, dan menjadi teman belajar yang interaktif.
     
-    ATURAN JAWABAN:
-    - Jawab secara ringkas, ramah, dan mudah dipahami oleh siswa.
-    - Gunakan bahasa Indonesia.
-    - Hindari format markdown tebal yang berlebihan seperti # atau tabel rumit. Gunakan gaya bahasa yang natural, suportif, dan ramah seperti seorang mentor belajar sebaya.
-    
-    Riwayat Percakapan Sebelumnya:
-    ${formattedHistory}
-    
-    Pertanyaan Siswa Terbaru:
-    ${message}`;
+ATURAN JAWABAN:
+- Jawab secara ringkas, ramah, dan mudah dipahami oleh siswa.
+- Gunakan bahasa Indonesia.
+- Hindari format markdown tebal yang berlebihan seperti # atau tabel rumit. Gunakan gaya bahasa yang natural, suportif, dan ramah seperti seorang mentor belajar sebaya.
+
+Riwayat Percakapan Sebelumnya:
+${formattedHistory}
+
+Pertanyaan Siswa Terbaru:
+${message}`;
 
     const result = await model.generateContent(prompt);
     const reply = result.response.text().trim();
 
     // Save assistant reply to database
-    await supabase.from('ai_chat_messages').insert({
-      session_id: sessionId,
-      role: 'assistant',
-      content: reply
-    });
+    await pool.query(
+      'INSERT INTO public.ai_chat_messages (session_id, role, content) VALUES ($1, $2, $3)',
+      [sessionId, 'assistant', reply]
+    );
 
     return NextResponse.json({ reply });
   } catch (err: any) {

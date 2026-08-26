@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import pool from '@/lib/db';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -19,13 +20,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id: idSegments } = await params;
   const id = idSegments.join('-');
-  const supabase = await createClient();
-
-  const { data: note } = await supabase
-    .from('notes')
-    .select('title')
-    .eq('id', id)
-    .single();
+  const noteRes = await pool.query('SELECT title FROM public.notes WHERE id = $1 LIMIT 1', [id]);
+  const note = noteRes.rows[0];
 
   const title = note?.title?.trim() || 'Catatan';
 
@@ -51,29 +47,36 @@ export default async function PublicNoteDetailPage({
   params: Promise<{ id: string[] }>;
 }) {
   const { id: idSegments } = await params;
-  // Catch-all: join segments in case URL was split by WhatsApp or other messengers
   const id = idSegments.join('-');
-  const supabase = await createClient();
 
   // ─── 1. Fetch the note ──────────────────────────────────────────────────
-  const { data: note, error } = await supabase
-    .from('notes')
-    .select(`
-      *,
-      folders(id, name, visibility, allowed_emails),
-      note_media(id, media_url, order_index, media_type)
-    `)
-    .eq('id', id)
-    .single();
+  const noteRes = await pool.query(
+    `SELECT n.*,
+       CASE WHEN f.id IS NOT NULL THEN json_build_object('id', f.id, 'name', f.name, 'visibility', f.visibility, 'allowed_emails', f.allowed_emails) ELSE NULL END AS folders,
+       COALESCE(
+         json_agg(json_build_object('id', nm.id, 'media_url', nm.media_url, 'order_index', nm.order_index, 'media_type', nm.media_type)
+           ORDER BY nm.order_index)
+         FILTER (WHERE nm.id IS NOT NULL), '[]'
+       ) AS note_media
+     FROM public.notes n
+     LEFT JOIN public.folders f ON f.id = n.folder_id
+     LEFT JOIN public.note_media nm ON nm.note_id = n.id
+     WHERE n.id = $1
+     GROUP BY n.id, f.id`,
+    [id]
+  );
 
-  if (error || !note) {
+  if (noteRes.rows.length === 0) {
     notFound();
   }
+  const note = noteRes.rows[0];
 
   // ─── 2. Auth check ──────────────────────────────────────────────────────
-  const { data: { user } } = await supabase.auth.getUser();
-  const isGuest = !user;
-  const isOwner = user?.id === note.user_id;
+  const { userId } = await auth();
+  const clerkUser = userId ? await currentUser() : null;
+  const userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || '';
+  const isGuest = !userId;
+  const isOwner = userId === note.user_id;
 
   // ─── 3. Access control ──────────────────────────────────────────────────
   let visibility = note.visibility || 'private';
@@ -110,14 +113,14 @@ export default async function PublicNoteDetailPage({
       );
     }
 
-    if (visibility === 'restricted' && !allowedEmails.includes(user!.email || '')) {
+    if (visibility === 'restricted' && !allowedEmails.includes(userEmail)) {
       return (
         <div className="min-h-screen flex items-center justify-center p-4 text-center bg-[var(--bg)]">
           <div className="max-w-sm">
             <div className="w-16 h-16 rounded-full bg-[var(--surface-2)] flex items-center justify-center mx-auto mb-4 text-3xl">⛔</div>
             <h1 className="text-xl font-bold mb-2 text-[var(--text-primary)]">Akses Terbatas</h1>
             <p className="text-[var(--text-secondary)] mb-4 text-sm">
-              Email <strong>{user!.email}</strong> tidak memiliki izin untuk melihat catatan ini.
+              Email <strong>{userEmail}</strong> tidak memiliki izin untuk melihat catatan ini.
               Hubungi pemilik catatan untuk meminta akses.
             </p>
             <Link href="/dashboard" className="inline-block bg-[var(--accent)] text-[var(--accent-fg)] px-5 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity">
@@ -130,13 +133,13 @@ export default async function PublicNoteDetailPage({
   }
 
   // ─── 4. Auto-save to shared history (fire and forget) ───────────────────
-  if (!isOwner && user) {
-    supabase
-      .from('shared_notes_history')
-      .upsert({ user_id: user.id, note_id: note.id, created_at: new Date().toISOString() }, { onConflict: 'user_id,note_id' })
-      .then(({ error: histErr }) => {
-        if (histErr) console.error('Failed to log shared history', histErr);
-      });
+  if (!isOwner && userId) {
+    pool.query(
+      `INSERT INTO public.shared_notes_history (user_id, note_id, created_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id, note_id) DO NOTHING`,
+      [userId, note.id]
+    ).catch(e => console.error('Failed to log shared history', e));
   }
 
   // ─── 5. Prepare data ────────────────────────────────────────────────────
@@ -199,7 +202,7 @@ export default async function PublicNoteDetailPage({
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 flex-shrink-0">
               Obrolan AI
             </span>
-            {!isOwner && user && (
+            {!isOwner && userId && (
               <div className="ml-auto flex-shrink-0">
                 <Suspense fallback={null}>
                   <DuplicateButton noteId={note.id} isGuest={isGuest} />
@@ -304,17 +307,17 @@ export default async function PublicNoteDetailPage({
           <span className="text-[var(--border)] select-none flex-shrink-0">|</span>
 
           {/* User avatar + name */}
-          {user && (
+          {clerkUser && (
             <div className="flex items-center gap-1.5 min-w-0 flex-1">
-              {user.user_metadata?.avatar_url ? (
-                <img src={user.user_metadata.avatar_url} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
+              {clerkUser.imageUrl ? (
+                <img src={clerkUser.imageUrl} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
               ) : (
                 <div className="w-5 h-5 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center text-[9px] font-bold flex-shrink-0">
-                  {(user.email || 'U')[0].toUpperCase()}
+                  {(userEmail || 'U')[0].toUpperCase()}
                 </div>
               )}
               <span className="text-[11px] text-[var(--text-secondary)] truncate hidden sm:block">
-                {user.user_metadata?.full_name || user.email}
+                {clerkUser.fullName || userEmail}
               </span>
             </div>
           )}

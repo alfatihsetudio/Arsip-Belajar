@@ -1,33 +1,39 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { parseNoteContent } from '@/lib/utils/flashcardHelper';
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch all notes with media
-    const { data: notes, error } = await supabase
-      .from('notes')
-      .select('id, title, transcribed_text, created_at, note_media(media_url, media_type)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    const clerkUser = await currentUser();
 
-    if (error) throw error;
+    // Fetch all notes with media
+    const notesRes = await pool.query(
+      `SELECT n.id, n.title, n.transcribed_text, n.created_at,
+         COALESCE(json_agg(json_build_object('media_url', nm.media_url, 'media_type', nm.media_type)) FILTER (WHERE nm.id IS NOT NULL), '[]') AS note_media
+       FROM public.notes n
+       LEFT JOIN public.note_media nm ON nm.note_id = n.id
+       WHERE n.user_id = $1
+       GROUP BY n.id
+       ORDER BY n.created_at DESC`,
+      [userId]
+    );
+    const notes = notesRes.rows;
 
     // Fetch all folders
-    const { data: folders } = await supabase
-      .from('folders')
-      .select('id, name, created_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    const foldersRes = await pool.query(
+      'SELECT id, name, created_at FROM public.folders WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    const folders = foldersRes.rows;
 
-    const userName = user.user_metadata?.full_name || user.email || 'Pengguna';
+    const userName = clerkUser?.fullName || clerkUser?.emailAddresses?.[0]?.emailAddress || 'Pengguna';
     const exportDate = new Date().toLocaleDateString('id-ID', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });

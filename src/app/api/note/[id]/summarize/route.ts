@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseNoteContent, serializeNoteContent } from '@/lib/utils/flashcardHelper';
 
@@ -13,33 +14,30 @@ export async function POST(
 ) {
   try {
     const { id: noteId } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // 1. Get note contents
-    const { data: note, error: noteError } = await supabase
-      .from('notes')
-      .select('transcribed_text')
-      .eq('id', noteId)
-      .eq('user_id', user.id)
-      .single();
+    const noteRes = await pool.query(
+      'SELECT transcribed_text FROM public.notes WHERE id = $1 AND user_id = $2 LIMIT 1',
+      [noteId, userId]
+    );
 
-    if (noteError || !note) {
+    if (noteRes.rows.length === 0) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
-    const { textContent, flashcards, mindmap } = parseNoteContent(note.transcribed_text);
+    const { textContent, flashcards, mindmap } = parseNoteContent(noteRes.rows[0].transcribed_text);
 
     if (!textContent || textContent.trim().length === 0) {
       return NextResponse.json({ error: 'Teks catatan kosong. Silakan regenerate terlebih dahulu.' }, { status: 400 });
     }
 
     // 2. Process summary using Gemini
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
     const prompt = `You are an expert educational designer. 
 Your goal is to deeply analyze the provided note content and extract ONLY the absolute core learning takeaways, high-level concepts, or formulas.
 Do NOT just shorten the text, and do NOT transcribe everything. 
@@ -60,16 +58,10 @@ ${textContent}`;
     // 3. Serialize back and update database
     const updatedText = serializeNoteContent(textContent, flashcards, mindmap, summaryText);
 
-    const { error: updateError } = await supabase
-      .from('notes')
-      .update({ transcribed_text: updatedText })
-      .eq('id', noteId)
-      .eq('user_id', user.id);
-
-    if (updateError) {
-      console.error('Database update error for summary:', updateError);
-      return NextResponse.json({ error: 'Gagal menyimpan ringkasan ke database' }, { status: 500 });
-    }
+    await pool.query(
+      'UPDATE public.notes SET transcribed_text = $1 WHERE id = $2 AND user_id = $3',
+      [updatedText, noteId, userId]
+    );
 
     return NextResponse.json({ success: true, summary: summaryText });
   } catch (error: any) {

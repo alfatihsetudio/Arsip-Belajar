@@ -14,9 +14,10 @@ interface NoteContentEditorProps {
 }
 
 export default function NoteContentEditor({ noteId, noteTitle, initialText }: NoteContentEditorProps) {
-  const { textContent, flashcards, summary: initialSummary } = parseNoteContent(initialText);
+  const { textContent, flashcards, mindmap: initialMindmap, summary: initialSummary } = parseNoteContent(initialText);
   const [text, setText] = useState(textContent);
   const [summary, setSummary] = useState(initialSummary);
+  const [savedMindmap, setSavedMindmap] = useState(initialMindmap);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(textContent);
   
@@ -35,10 +36,11 @@ export default function NoteContentEditor({ noteId, noteTitle, initialText }: No
   const supabase = createClient();
 
   useEffect(() => {
-    const { textContent: newText, flashcards: newFlashcards, summary: newSummary } = parseNoteContent(initialText);
+    const { textContent: newText, flashcards: newFlashcards, mindmap: newMindmap, summary: newSummary } = parseNoteContent(initialText);
     setText(newText);
     setEditText(newText);
     setSavedFlashcards(newFlashcards);
+    setSavedMindmap(newMindmap);
     setSummary(newSummary);
   }, [initialText]);
 
@@ -67,7 +69,7 @@ export default function NoteContentEditor({ noteId, noteTitle, initialText }: No
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Unauthorized');
       
-      const serialized = serializeNoteContent(editText, savedFlashcards, null, summary);
+      const serialized = serializeNoteContent(editText, savedFlashcards, savedMindmap, summary);
       const { error } = await supabase
         .from('notes')
         .update({ transcribed_text: serialized })
@@ -164,7 +166,7 @@ export default function NoteContentEditor({ noteId, noteTitle, initialText }: No
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Unauthorized');
       
-      const serialized = serializeNoteContent(text, savedFlashcards, null, null);
+      const serialized = serializeNoteContent(text, savedFlashcards, savedMindmap, null);
       const { error } = await supabase
         .from('notes')
         .update({ transcribed_text: serialized })

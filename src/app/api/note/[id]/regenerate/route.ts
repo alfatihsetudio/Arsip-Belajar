@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import pool from '@/lib/db';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const maxDuration = 60;
@@ -12,30 +13,28 @@ export async function POST(
 ) {
   try {
     const { id: noteId } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // 1. Verify note ownership
-    const { data: noteOwnerCheck } = await supabase
-      .from('notes')
-      .select('id')
-      .eq('id', noteId)
-      .eq('user_id', user.id)
-      .single();
-    if (!noteOwnerCheck) {
+    const noteOwnerCheck = await pool.query(
+      'SELECT id FROM public.notes WHERE id = $1 AND user_id = $2 LIMIT 1',
+      [noteId, userId]
+    );
+    if (noteOwnerCheck.rows.length === 0) {
       return NextResponse.json({ error: 'Catatan tidak ditemukan' }, { status: 404 });
     }
-    const { data: media, error: mediaError } = await supabase
-      .from('note_media')
-      .select('media_url, order_index, media_type')
-      .eq('note_id', noteId)
-      .order('order_index', { ascending: true });
 
-    if (mediaError || !media || media.length === 0) {
+    const mediaRes = await pool.query(
+      'SELECT media_url, order_index, media_type FROM public.note_media WHERE note_id = $1 ORDER BY order_index ASC',
+      [noteId]
+    );
+    const media = mediaRes.rows;
+
+    if (!media || media.length === 0) {
       return NextResponse.json(
         { error: 'No media files found for this note to regenerate' },
         { status: 404 }
@@ -69,8 +68,8 @@ export async function POST(
       );
     }
 
-    // 3. Process with Gemini using the new prioritizing prompt
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
+    // 3. Process with Gemini using the prioritizing prompt
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
     const prompt = `You are an expert educational notes transcriber. 
 Understand the material from the whiteboard/images deeply. Do NOT transcribe strictly chronologically or spatially (e.g., left to right, top to bottom) if that doesn't make educational sense.
 Instead, understand the whiteboard content, analyze the topic, and write the notes structured by educational priority:
@@ -89,16 +88,10 @@ CRITICAL RULES:
     const transcribedText = result.response.text();
 
     // 4. Update the note in the database
-    const { error: updateError } = await supabase
-      .from('notes')
-      .update({ transcribed_text: transcribedText })
-      .eq('id', noteId)
-      .eq('user_id', user.id); // Ensure user owns the note
-
-    if (updateError) {
-      console.error('DB update error during regeneration:', updateError);
-      return NextResponse.json({ error: 'Failed to update note text' }, { status: 500 });
-    }
+    await pool.query(
+      'UPDATE public.notes SET transcribed_text = $1 WHERE id = $2 AND user_id = $3',
+      [transcribedText, noteId, userId]
+    );
 
     return NextResponse.json({ success: true, text: transcribedText });
   } catch (error: any) {

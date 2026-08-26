@@ -12,15 +12,33 @@ export async function POST(req: NextRequest) {
     const { type } = body;
 
     if (type === 'storage_upload') {
-      const { bucket, path, contentType } = body;
+      let { bucket, path, contentType } = body;
+      if (path && typeof path === 'string') {
+        if (path.startsWith('mock/')) {
+          path = `${userId}/${path.substring(5)}`;
+        } else if (!path.startsWith(`${userId}/`)) {
+          path = `${userId}/${path.replace(/^\/+/, '')}`;
+        }
+      }
       const url = await getUploadPresignedUrl(path, contentType || 'application/octet-stream');
       return NextResponse.json({ data: { signedUrl: url, path } });
     }
 
     if (type === 'storage_remove') {
       const { bucket, paths } = body;
-      for (const p of paths) {
-        await deleteS3Object(p);
+      for (let p of paths) {
+        if (typeof p === 'string') {
+          try {
+            if (p.startsWith('http')) {
+              const urlObj = new URL(p);
+              p = urlObj.pathname.replace(/^\/+/, '');
+              if (p.includes('media/')) {
+                p = p.split('media/')[1];
+              }
+            }
+          } catch (e) {}
+          await deleteS3Object(p);
+        }
       }
       return NextResponse.json({ data: { success: true } });
     }
@@ -86,8 +104,12 @@ export async function POST(req: NextRequest) {
       const setClauses = [];
       if (payload.user_id) payload.user_id = userId; // Override mock
       for (const key of Object.keys(payload)) {
+        let val = payload[key];
+        if (key === 'allowed_emails' && Array.isArray(val)) {
+          val = JSON.stringify(val);
+        }
         setClauses.push(`${key} = $${paramIndex}`);
-        values.push(payload[key]);
+        values.push(val);
         paramIndex++;
       }
       const query = `UPDATE public.${table} SET ${setClauses.join(', ')} ${whereClause} RETURNING *`;
@@ -116,7 +138,11 @@ export async function POST(req: NextRequest) {
         const itemVals = [];
         for (const col of cols) {
           itemVals.push(`$${insertIndex++}`);
-          insertValues.push(item[col]);
+          let val = item[col];
+          if (col === 'allowed_emails' && Array.isArray(val)) {
+            val = JSON.stringify(val);
+          }
+          insertValues.push(val);
         }
         valStrings.push(`(${itemVals.join(', ')})`);
       }

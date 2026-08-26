@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Process with Gemini
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
     let transcribedText = '';
 
     const basePrompt = `You are an expert educational notes transcriber.
