@@ -1,0 +1,20 @@
+{
+  "name": "wa-bot",
+  "version": "1.0.0",
+  "description": "Standalone WhatsApp Bot Server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --dns-result-order=ipv4first index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1119.0",
+    "@aws-sdk/s3-request-presigner": "^3.1119.0",
+    "@google/generative-ai": "^0.21.0",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "dotenv": "^16.4.7",
+    "node-fetch": "^2.7.0",
+    "pg": "^8.13.1",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

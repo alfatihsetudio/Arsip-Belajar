@@ -40,3 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .neon
+
+wa-bot/auth_info_baileys
+wa-bot/node_modules
+wa-bot/make-payload.js
+wa-bot/test-gemini*

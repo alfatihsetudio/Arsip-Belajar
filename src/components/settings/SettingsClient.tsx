@@ -16,6 +16,11 @@ interface SettingsClientProps {
     provider: string;
     education_level?: string;
   };
+  waInfo?: {
+    status: 'unlinked' | 'pending' | 'verified';
+    token: string | null;
+    number: string | null;
+  };
   stats: {
     noteCount: number;
     folderCount: number;
@@ -309,7 +314,7 @@ function StorageBar({ usedMB, limitMB }: { usedMB: number; limitMB: number }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function SettingsClient({ user, stats }: SettingsClientProps) {
+export default function SettingsClient({ user, stats, waInfo }: SettingsClientProps) {
   const supabase = createClient();
 
   // Profile state — seed from server-fetched user data
@@ -335,6 +340,13 @@ export default function SettingsClient({ user, stats }: SettingsClientProps) {
 
   // Active tab
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'app' | 'billing'>('profile');
+
+  // WhatsApp state
+  const [waStatus, setWaStatus] = useState(waInfo?.status || 'unlinked');
+  const [waToken, setWaToken] = useState(waInfo?.token || '');
+  const [waNumberInput, setWaNumberInput] = useState(waInfo?.number || '');
+  const [waLoading, setWaLoading] = useState(false);
+  const [waError, setWaError] = useState('');
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -404,6 +416,84 @@ export default function SettingsClient({ user, stats }: SettingsClientProps) {
     setAiSaved(true);
     setTimeout(() => setAiSaved(false), 2000);
   };
+
+  const handleLinkWA = async () => {
+    setWaLoading(true);
+    setWaError('');
+    try {
+      // Normalize number: replace starting 0 with 62
+      let normalized = waNumberInput.trim().replace(/\D/g, '');
+      if (normalized.startsWith('0')) {
+        normalized = '62' + normalized.slice(1);
+      } else if (normalized.startsWith('8')) {
+        normalized = '62' + normalized;
+      }
+
+      if (!normalized || normalized.length < 9) {
+        throw new Error('Nomor WhatsApp tidak valid');
+      }
+
+      const res = await fetch('/api/whatsapp/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: normalized })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menghubungkan WhatsApp');
+      
+      setWaStatus('pending');
+      setWaToken(data.token);
+      setWaNumberInput(normalized);
+    } catch (err: any) {
+      setWaError(err.message);
+    } finally {
+      setWaLoading(false);
+    }
+  };
+
+  const handleUnlinkWA = async () => {
+    setWaLoading(true);
+    try {
+      const res = await fetch('/api/whatsapp/link', { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal memutus koneksi WhatsApp');
+      setWaStatus('unlinked');
+      setWaToken('');
+      setWaNumberInput('');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setWaLoading(false);
+    }
+  };
+
+  // Polling to automatically update UI when verified via WhatsApp
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (waStatus === 'pending') {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch('/api/whatsapp/status');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'verified') {
+              setWaStatus('verified');
+              setWaNumberInput(data.number);
+              setWaToken('');
+              // Stop polling once verified
+              clearInterval(intervalId);
+            }
+          }
+        } catch (err) {
+          console.error('Error polling WA status:', err);
+        }
+      }, 3000); // Check every 3 seconds
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [waStatus]);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
 
@@ -645,6 +735,79 @@ export default function SettingsClient({ user, stats }: SettingsClientProps) {
                 <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Preferensi Disimpan!</>
               ) : 'Simpan Preferensi AI'}
             </button>
+          </SectionCard>
+
+          <SectionCard title="Integrasi WhatsApp (RAG Bot)">
+            <p className="text-xs text-[var(--text-secondary)] mb-4">
+              Tanyakan materi catatan Anda langsung via WhatsApp dengan AI.
+            </p>
+            
+            {waStatus === 'unlinked' && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Nomor WhatsApp</label>
+                  <input
+                    value={waNumberInput}
+                    onChange={(e) => setWaNumberInput(e.target.value)}
+                    placeholder="Contoh: 081234567890"
+                    className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-all"
+                  />
+                </div>
+                {waError && <p className="text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-xl">{waError}</p>}
+                <button
+                  onClick={handleLinkWA}
+                  disabled={waLoading || !waNumberInput.trim()}
+                  className="w-full py-2.5 bg-[#25D366] text-white rounded-xl text-sm font-bold hover:bg-[#1DA851] transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {waLoading ? 'Memproses...' : 'Tautkan WhatsApp'}
+                </button>
+              </div>
+            )}
+
+            {waStatus === 'pending' && (
+              <div className="space-y-4">
+                <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl">
+                  <p className="text-xs text-amber-600 font-semibold mb-2">Menunggu Aktivasi</p>
+                  <p className="text-[11px] text-amber-600/80 mb-2">Silakan kirim pesan ke nomor bot kami untuk verifikasi.</p>
+                  <p className="text-sm font-mono font-bold text-amber-600 bg-amber-500/20 px-2 py-1 inline-block rounded">
+                    Aktivasi Akun Arsip Belajar saya: {waToken}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <a
+                    href={`https://wa.me/${process.env.NEXT_PUBLIC_BOT_WA_NUMBER || '6283862635897'}?text=${encodeURIComponent(`Aktivasi Akun Arsip Belajar saya: ${waToken}`)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 text-center py-2 bg-[#25D366] text-white rounded-xl text-xs font-bold hover:bg-[#1DA851] transition-colors cursor-pointer"
+                  >
+                    Buka WhatsApp & Aktivasi
+                  </a>
+                  <button
+                    onClick={handleUnlinkWA}
+                    disabled={waLoading}
+                    className="px-4 py-2 border border-[var(--border)] text-[var(--text-secondary)] rounded-xl text-xs font-bold hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                  >
+                    Batalkan
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {waStatus === 'verified' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#25D366]/10 border border-[#25D366]/30 rounded-xl text-sm text-[#25D366]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#25D366] animate-pulse"></span>
+                  <span className="font-bold">Terhubung ({waNumberInput})</span>
+                </div>
+                <button
+                  onClick={handleUnlinkWA}
+                  disabled={waLoading}
+                  className="w-full py-2 bg-red-500/10 text-red-500 border border-red-500/30 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                >
+                  {waLoading ? 'Memproses...' : 'Putuskan Koneksi'}
+                </button>
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard title="Informasi Aplikasi">
