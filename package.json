@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "bot:dev": "npm run dev --prefix wa-bot",
+    "bot:prod": "npm run prod --prefix wa-bot",
+    "bot:start": "npm run start --prefix wa-bot"
   },
   "allowScripts": {
     "sharp": true,

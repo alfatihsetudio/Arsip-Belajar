@@ -1,9 +1,18 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 require('dotenv').config({ path: '../.env.local' }); // Load env from Next.js root
+
+// Global Error Handlers to prevent crash
+process.on('uncaughtException', (err) => {
+    console.error('CRITICAL: Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 console.log("Status API Key Gemini:", process.env.GEMINI_API_KEY ? "✅ Terbaca" : "❌ KOSONG");
 
 const { Pool } = require('pg');
@@ -24,13 +33,22 @@ const dbPool = new Pool({ connectionString: process.env.DATABASE_URL });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 async function connectToWhatsApp() {
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`Menggunakan Baileys v${version.join('.')}, latest: ${isLatest}`);
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     
     const sock = makeWASocket({
+        version,
         auth: state,
-        printQRInTerminal: false, // We'll print it manually using qrcode-terminal
-        logger: pino({ level: 'silent' }), // Silence logs for clean terminal
-        browser: ['Arsip Belajar Bot', 'Chrome', '1.0.0']
+        printQRInTerminal: false,
+        logger: pino({ level: 'silent' }),
+        browser: ['Arsip Belajar Bot', 'Chrome', '1.0.0'],
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 0,
+        keepAliveIntervalMs: 10000,
+        emitOwnEvents: true,
+        markOnlineOnConnect: true
     });
 
     sock.ev.on('connection.update', (update) => {
@@ -46,7 +64,18 @@ async function connectToWhatsApp() {
             console.log('Koneksi terputus. Alasan:', lastDisconnect.error?.message);
             if (shouldReconnect) {
                 console.log('Menghubungkan kembali...');
-                connectToWhatsApp();
+                // Test database connection before starting bot
+dbPool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('❌ GAGAL TERHUBUNG KE DATABASE:', err.message);
+        process.exit(1);
+    } else {
+        console.log('✅ Database terhubung.');
+        connectToWhatsApp().catch(err => {
+            console.error('❌ GAGAL MEMULAI BOT:', err);
+        });
+    }
+});
             } else {
                 console.log('Sesi log out. Silakan hapus folder auth_info_baileys dan scan QR ulang.');
             }
@@ -291,4 +320,15 @@ Pertanyaan: ${textMessage}`;
     });
 }
 
-connectToWhatsApp();
+// Test database connection before starting bot
+dbPool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('❌ GAGAL TERHUBUNG KE DATABASE:', err.message);
+        process.exit(1);
+    } else {
+        console.log('✅ Database terhubung.');
+        connectToWhatsApp().catch(err => {
+            console.error('❌ GAGAL MEMULAI BOT:', err);
+        });
+    }
+});

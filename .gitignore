@@ -45,3 +45,5 @@ wa-bot/auth_info_baileys
 wa-bot/node_modules
 wa-bot/make-payload.js
 wa-bot/test-gemini*
+wa-bot/key.txt
+wa-bot/payload.json
