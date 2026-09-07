@@ -22,6 +22,7 @@ interface SettingsClientProps {
     status: 'unlinked' | 'pending' | 'verified';
     token: string | null;
     number: string | null;
+    botNumber?: string;
   };
   stats: {
     noteCount: number;
@@ -825,7 +826,7 @@ export default function SettingsClient({
                 </div>
                 <div className="flex gap-2">
                   <a
-                    href={`https://wa.me/${process.env.NEXT_PUBLIC_BOT_WA_NUMBER || '6283862635897'}?text=${encodeURIComponent(`Aktivasi Akun Arsip Belajar saya: ${waToken}`)}`}
+                    href={`https://wa.me/${waInfo?.botNumber || process.env.NEXT_PUBLIC_BOT_WA_NUMBER || '6285220070610'}?text=${encodeURIComponent(`Aktivasi Akun Arsip Belajar saya: ${waToken}`)}`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex-1 text-center py-2 bg-[#25D366] text-white rounded-xl text-xs font-bold hover:bg-[#1DA851] transition-colors cursor-pointer"

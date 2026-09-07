@@ -41,6 +41,7 @@ export default async function SettingsPage() {
   const waStatus = profile.wa_status || 'unlinked';
   const waToken = profile.wa_verify_token || null;
   const waNumber = profile.whatsapp_number || null;
+  const botNumber = process.env.NEXT_PUBLIC_BOT_WA_NUMBER || '6285220070610';
 
   return (
     <SettingsClient
@@ -57,6 +58,7 @@ export default async function SettingsPage() {
         status: waStatus,
         token: waToken,
         number: waNumber,
+        botNumber: botNumber,
       }}
       stats={{
         noteCount: parseInt(noteRes.rows[0].count, 10),
