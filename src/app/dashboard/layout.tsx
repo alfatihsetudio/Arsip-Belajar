@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Cek apakah profile dengan Clerk ID sudah ada (fast path, 1 query)
   const profileCheck = await pool.query(
-    `SELECT id FROM public.profiles WHERE id = $1 LIMIT 1`,
+    `SELECT id, full_name, avatar_url FROM public.profiles WHERE id = $1 LIMIT 1`,
     [userId]
   );
   const alreadyMigrated = profileCheck.rows.length > 0;
@@ -25,13 +25,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
   // Subsequent logins: sudah ada di DB, tidak perlu sync lagi
 
+  const dbProfile = profileCheck.rows[0] || {};
+
   const userForSidebar = {
     id: userId,
     email: user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress
       ?? user.emailAddresses[0]?.emailAddress,
     user_metadata: {
-      full_name: user.fullName ?? user.firstName ?? '',
-      avatar_url: user.imageUrl ?? '',
+      full_name: dbProfile.full_name || user.fullName || user.firstName || '',
+      avatar_url: dbProfile.avatar_url || user.imageUrl || '',
     },
   };
 

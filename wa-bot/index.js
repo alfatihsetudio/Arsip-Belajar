@@ -29,7 +29,17 @@ const s3 = new S3Client({
 });
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'arsipbelajar';
 
-const dbPool = new Pool({ connectionString: process.env.DATABASE_URL });
+const dbPool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+});
+
+// Tangani error koneksi idle database agar proses bot tidak crash mendadak
+dbPool.on('error', (err) => {
+    console.error('⚠️ [DB Warning] Idle client error:', err.message);
+});
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 async function connectToWhatsApp() {
@@ -46,7 +56,7 @@ async function connectToWhatsApp() {
         browser: ['Arsip Belajar Bot', 'Chrome', '1.0.0'],
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 0,
-        keepAliveIntervalMs: 10000,
+        keepAliveIntervalMs: 25000,
         emitOwnEvents: true,
         markOnlineOnConnect: true
     });
@@ -60,24 +70,21 @@ async function connectToWhatsApp() {
         }
         
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Koneksi terputus. Alasan:', lastDisconnect.error?.message);
-            if (shouldReconnect) {
-                console.log('Menghubungkan kembali...');
-                // Test database connection before starting bot
-dbPool.query('SELECT NOW()', (err, res) => {
-    if (err) {
-        console.error('❌ GAGAL TERHUBUNG KE DATABASE:', err.message);
-        process.exit(1);
-    } else {
-        console.log('✅ Database terhubung.');
-        connectToWhatsApp().catch(err => {
-            console.error('❌ GAGAL MEMULAI BOT:', err);
-        });
-    }
-});
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+            console.log(`Koneksi terputus. Alasan: ${lastDisconnect?.error?.message || 'Tidak diketahui'} (Kode: ${statusCode})`);
+            
+            if (isLoggedOut) {
+                console.log('❌ Sesi log out dari WhatsApp HP. Silakan hapus folder auth_info_baileys dan scan QR ulang.');
             } else {
-                console.log('Sesi log out. Silakan hapus folder auth_info_baileys dan scan QR ulang.');
+                console.log('🔄 Menghubungkan kembali dalam 5 detik...');
+                setTimeout(() => {
+                    connectToWhatsApp().catch(err => {
+                        console.error('❌ GAGAL RECONNECT BOT:', err);
+                        // Exit dengan code 1 agar PM2 me-restart proses secara bersih
+                        process.exit(1);
+                    });
+                }, 5000);
             }
         } else if (connection === 'open') {
             console.log('✅ Bot WhatsApp berhasil terhubung!');

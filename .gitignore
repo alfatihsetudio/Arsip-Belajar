@@ -47,3 +47,4 @@ wa-bot/make-payload.js
 wa-bot/test-gemini*
 wa-bot/key.txt
 wa-bot/payload.json
+scratch/

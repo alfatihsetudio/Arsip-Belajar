@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import ExportDataModal from '@/components/settings/ExportDataModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,13 +28,15 @@ interface SettingsClientProps {
     folderCount: number;
     storageMB: number;
   };
+  availableNotes?: Array<{ id: string; title: string; created_at: string; folder_id?: string | null }>;
+  availableFolders?: Array<{ id: string; name: string }>;
 }
 
 // ─── Reusable Sub-components ─────────────────────────────────────────────────
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl">
       <div className="px-5 py-3.5 border-b border-[var(--border)]">
         <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">{title}</p>
       </div>
@@ -63,17 +67,15 @@ function StyledSelect({ value, onChange, options, disabled, fullWidth = false }:
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useState(() => {
-    if (typeof window !== 'undefined') {
-      const handleOutsideClick = (e: MouseEvent) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-          setIsOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handleOutsideClick);
-      return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }
-  });
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   const activeOption = options.find(o => o.value === value) || options[0];
 
@@ -83,11 +85,11 @@ function StyledSelect({ value, onChange, options, disabled, fullWidth = false }:
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className={`bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-[var(--accent)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 justify-between ${
-          fullWidth ? 'w-full' : 'min-w-[140px]'
+        className={`bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[var(--accent)] hover:border-[var(--text-muted)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-between ${
+          fullWidth ? 'w-full' : 'min-w-[150px]'
         }`}
       >
-        <span>{activeOption?.label}</span>
+        <span className="truncate font-medium">{activeOption?.label}</span>
         <svg
           width="14"
           height="14"
@@ -97,15 +99,15 @@ function StyledSelect({ value, onChange, options, disabled, fullWidth = false }:
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`text-[var(--text-secondary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`text-[var(--text-secondary)] transition-transform duration-200 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
         >
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
 
       {isOpen && !disabled && (
-        <div className={`absolute mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-1.5 animate-fadeIn ${
-          fullWidth ? 'left-0 right-0' : 'right-0 w-48'
+        <div className={`absolute mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl z-[60] py-1.5 animate-fadeIn max-h-60 overflow-y-auto ${
+          fullWidth ? 'left-0 right-0 w-full' : 'right-0 w-52'
         }`}>
           {options.map(o => (
             <button
@@ -116,11 +118,18 @@ function StyledSelect({ value, onChange, options, disabled, fullWidth = false }:
                 onChange(o.value);
                 setIsOpen(false);
               }}
-              className={`w-full text-left px-4 py-2 text-sm font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-2)] ${
-                value === o.value ? 'text-[var(--accent)] bg-[var(--accent)]/5' : 'text-[var(--text-primary)]'
+              className={`w-full text-left px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between gap-2 hover:bg-[var(--surface-2)] ${
+                value === o.value
+                  ? 'text-[var(--text-primary)] font-semibold bg-[var(--surface-2)]/70'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              {o.label}
+              <span>{o.label}</span>
+              {value === o.value && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)] flex-shrink-0">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
             </button>
           ))}
         </div>
@@ -314,7 +323,13 @@ function StorageBar({ usedMB, limitMB }: { usedMB: number; limitMB: number }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function SettingsClient({ user, stats, waInfo }: SettingsClientProps) {
+export default function SettingsClient({ 
+  user, 
+  stats, 
+  waInfo,
+  availableNotes = [],
+  availableFolders = [],
+}: SettingsClientProps) {
   const supabase = createClient();
 
   // Profile state — seed from server-fetched user data
@@ -335,6 +350,7 @@ export default function SettingsClient({ user, stats, waInfo }: SettingsClientPr
   // Modals & actions
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState(false);
 
@@ -350,33 +366,68 @@ export default function SettingsClient({ user, stats, waInfo }: SettingsClientPr
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const router = useRouter();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Show local preview immediately
     const reader = new FileReader();
     reader.onload = ev => {
       if (ev.target?.result) setAvatarPreview(ev.target.result as string);
     };
     reader.readAsDataURL(file);
-    // TODO: supabase.storage.from('avatars').upload(`${user.id}.${ext}`, file)
-    // then call supabase.auth.updateUser({ data: { avatar_url: publicUrl } })
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload-media', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.data?.[0]?.url) {
+        const uploadedUrl = data.data[0].url;
+        setAvatarPreview(uploadedUrl);
+        await fetch('/api/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatar_url: uploadedUrl }),
+        });
+        router.refresh();
+      }
+    } catch (err) {
+      console.error('Failed to upload avatar:', err);
+    }
   };
 
   const handleUpdateProfile = async () => {
     setProfileSaving(true);
     setProfileError('');
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        full_name: displayName.trim(),
-        education_level: eduLevel,
-      },
-    });
-    setProfileSaving(false);
-    if (error) {
-      setProfileError(error.message);
-    } else {
+
+    try {
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: displayName.trim(),
+          education_level: eduLevel,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal menyimpan profil');
+      }
+
       setProfileSaved(true);
+      router.refresh();
       setTimeout(() => setProfileSaved(false), 2500);
+    } catch (err: any) {
+      setProfileError(err.message || 'Terjadi kesalahan saat menyimpan profil');
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -643,23 +694,22 @@ export default function SettingsClient({ user, stats, waInfo }: SettingsClientPr
 
           <SectionCard title="Data & Privasi">
             <div className="space-y-1">
-              <SettingsRow label="Ekspor Data" sub="Unduh semua catatan sebagai file HTML — buka langsung di browser.">
+              <SettingsRow label="Ekspor Data" sub="Pilih catatan, folder, ringkasan, atau media apa saja yang ingin diekspor ke file HTML.">
                 <button
-                  onClick={handleExportData}
-                  disabled={exporting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs font-bold text-[var(--text-primary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all disabled:opacity-60 cursor-pointer"
+                  type="button"
+                  onClick={() => setShowExportModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs font-bold text-[var(--text-primary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer shadow-sm"
                 >
-                  {exporting ? (
-                    <><span className="w-3 h-3 border-2 border-[var(--text-muted)]/30 border-t-[var(--accent)] rounded-full animate-spin" />Memproses...</>
-                  ) : exportDone ? (
-                    <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Selesai!</>
-                  ) : (
-                    <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Ekspor (.html)</>
-                  )}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>Ekspor (.html)</span>
                 </button>
               </SettingsRow>
               <p className="text-[10px] text-[var(--text-muted)] pl-0 pt-0.5">
-                File HTML bisa dibuka langsung di Chrome / Safari / Firefox tanpa aplikasi tambahan.
+                Anda dapat memilih catatan tertentu, daftar folder, ringkasan AI, flashcards, dan gambar secara fleksibel.
               </p>
             </div>
           </SectionCard>
@@ -852,6 +902,12 @@ export default function SettingsClient({ user, stats, waInfo }: SettingsClientPr
       {showAboutModal && (
         <AboutOwnerModal onClose={() => setShowAboutModal(false)} />
       )}
+      <ExportDataModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        availableNotes={availableNotes}
+        availableFolders={availableFolders}
+      />
     </div>
   );
 }

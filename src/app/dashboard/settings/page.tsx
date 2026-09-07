@@ -8,7 +8,7 @@ export default async function SettingsPage() {
 
   const clerkUser = await currentUser();
 
-  const [noteRes, folderRes, mediaRes, profileRes] = await Promise.all([
+  const [noteRes, folderRes, mediaRes, profileRes, notesListRes, foldersListRes] = await Promise.all([
     pool.query(`SELECT COUNT(*) FROM public.notes WHERE user_id = $1`, [userId]),
     pool.query(`SELECT COUNT(*) FROM public.folders WHERE user_id = $1`, [userId]),
     pool.query(
@@ -18,7 +18,15 @@ export default async function SettingsPage() {
       [userId]
     ),
     pool.query(
-      `SELECT wa_status, wa_verify_token, whatsapp_number FROM public.profiles WHERE id = $1 LIMIT 1`,
+      `SELECT wa_status, wa_verify_token, whatsapp_number, full_name, education_level, avatar_url FROM public.profiles WHERE id = $1 LIMIT 1`,
+      [userId]
+    ),
+    pool.query(
+      `SELECT id, title, created_at, folder_id FROM public.notes WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    ),
+    pool.query(
+      `SELECT id, name FROM public.folders WHERE user_id = $1 ORDER BY name ASC`,
       [userId]
     )
   ]);
@@ -29,20 +37,21 @@ export default async function SettingsPage() {
     (e) => e.id === clerkUser.primaryEmailAddressId
   )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress ?? '';
 
-  const waStatus = profileRes.rows[0]?.wa_status || 'unlinked';
-  const waToken = profileRes.rows[0]?.wa_verify_token || null;
-  const waNumber = profileRes.rows[0]?.whatsapp_number || null;
+  const profile = profileRes.rows[0] || {};
+  const waStatus = profile.wa_status || 'unlinked';
+  const waToken = profile.wa_verify_token || null;
+  const waNumber = profile.whatsapp_number || null;
 
   return (
     <SettingsClient
       user={{
         id: userId,
         email,
-        full_name: clerkUser?.fullName ?? clerkUser?.firstName ?? '',
-        avatar_url: clerkUser?.imageUrl ?? '',
+        full_name: profile.full_name || clerkUser?.fullName || clerkUser?.firstName || '',
+        avatar_url: profile.avatar_url || clerkUser?.imageUrl || '',
         created_at: clerkUser?.createdAt ? new Date(clerkUser.createdAt).toISOString() : '',
         provider: 'google',
-        education_level: '',
+        education_level: profile.education_level || '',
       }}
       waInfo={{
         status: waStatus,
@@ -54,6 +63,8 @@ export default async function SettingsPage() {
         folderCount: parseInt(folderRes.rows[0].count, 10),
         storageMB: estimatedStorageMB,
       }}
+      availableNotes={notesListRes.rows || []}
+      availableFolders={foldersListRes.rows || []}
     />
   );
 }

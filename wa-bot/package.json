@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node --dns-result-order=ipv4first index.js",
     "dev": "nodemon index.js",
-    "prod": "pm2 start ecosystem.config.js"
+    "prod": "pm2 start ecosystem.config.js",
+    "stop": "pm2 stop ecosystem.config.js",
+    "restart": "pm2 restart ecosystem.config.js",
+    "logs": "pm2 logs wa-bot-arsip"
   },
   "dependencies": {
     "pm2": "^5.4.2",

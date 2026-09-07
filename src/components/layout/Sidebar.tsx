@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useClerk } from '@clerk/nextjs';
 
 import ThemeSwitcher from './ThemeSwitcher';
+import WebsiteQrModal from './WebsiteQrModal';
 
 const NAV_ITEMS = [
   {
@@ -81,6 +82,9 @@ export default function Sidebar({ user }: { user: any }) {
   const [color, setColor] = useState('');
   const [emoji, setEmoji] = useState('📁');
   const [saving, setSaving] = useState(false);
+
+  // Barcode / Website QR Modal State
+  const [showQrModal, setShowQrModal] = useState(false);
 
   // Close mobile drawer on route change
   useEffect(() => { setMobileOpen(false); }, [pathname]);
@@ -354,11 +358,11 @@ export default function Sidebar({ user }: { user: any }) {
     <div className="h-full flex flex-col">
       {/* Logo */}
       <div className="px-4 py-3.5 border-b border-[var(--border)]">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
           <div className="w-7 h-7 rounded-lg overflow-hidden bg-white flex-shrink-0 relative">
             <Image src="/logo.jpg" alt="Arsip Belajar" fill sizes="28px" className="object-cover" />
           </div>
-          <span className="font-bold text-[var(--text-primary)] text-sm sm:text-base">Arsip Belajar</span>
+          <span className="font-bold text-[var(--text-primary)] text-sm sm:text-base truncate">Arsip Belajar</span>
         </Link>
       </div>
 
@@ -391,6 +395,28 @@ export default function Sidebar({ user }: { user: any }) {
             <p className="text-[10px] sm:text-xs text-[var(--text-muted)] truncate">{user.email}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Direct Barcode Button */}
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              title="Barcode Website"
+              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors rounded-lg cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="5" height="5" x="3" y="3" rx="1" />
+                <rect width="5" height="5" x="16" y="3" rx="1" />
+                <rect width="5" height="5" x="3" y="16" rx="1" />
+                <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+                <path d="M21 21v.01" />
+                <path d="M12 7v3a2 2 0 0 1-2 2H7" />
+                <path d="M3 12h.01" />
+                <path d="M12 3h.01" />
+                <path d="M12 16v.01" />
+                <path d="M16 12h1" />
+                <path d="M21 12v.01" />
+                <path d="M12 21v-1" />
+              </svg>
+            </button>
             <ThemeSwitcher />
             <button onClick={handleLogout} title="Logout" className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)] transition-colors rounded-lg hover:bg-[var(--surface-2)]">
               <LogoutIcon />
@@ -425,6 +451,28 @@ export default function Sidebar({ user }: { user: any }) {
           </Link>
         </div>
         <div className="flex-shrink-0 flex items-center gap-1">
+          {/* Direct Barcode Button on mobile topbar */}
+          <button
+            type="button"
+            onClick={() => setShowQrModal(true)}
+            title="Barcode Website"
+            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] rounded-lg transition-colors cursor-pointer"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="5" height="5" x="3" y="3" rx="1" />
+              <rect width="5" height="5" x="16" y="3" rx="1" />
+              <rect width="5" height="5" x="3" y="16" rx="1" />
+              <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+              <path d="M21 21v.01" />
+              <path d="M12 7v3a2 2 0 0 1-2 2H7" />
+              <path d="M3 12h.01" />
+              <path d="M12 3h.01" />
+              <path d="M12 16v.01" />
+              <path d="M16 12h1" />
+              <path d="M21 12v.01" />
+              <path d="M12 21v-1" />
+            </svg>
+          </button>
           <ThemeSwitcher />
         </div>
       </div>
@@ -868,6 +916,12 @@ export default function Sidebar({ user }: { user: any }) {
           </div>
         </div>
       )}
+
+      {/* Modal Barcode Website Arsip Belajar */}
+      <WebsiteQrModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+      />
     </>
   );
 }
