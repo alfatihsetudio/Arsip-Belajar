@@ -32,18 +32,14 @@ export async function getUploadPresignedUrl(key: string, contentType: string) {
  * Menggunakan custom domain (R2_PUBLIC_URL) jika ada, atau fallback ke Presigned URL.
  */
 export async function getPublicUrl(key: string) {
-  if (R2_PUBLIC_URL) {
+  if (R2_PUBLIC_URL && !R2_PUBLIC_URL.includes('.r2.dev')) {
     // Hilangkan trailing slash jika ada
     const baseUrl = R2_PUBLIC_URL.replace(/\/$/, '');
     return `${baseUrl}/${key}`;
   }
   
-  // Fallback: Presigned URL untuk baca (valid selama 7 hari - maks R2)
-  const command = new GetObjectCommand({
-    Bucket: R2_BUCKET,
-    Key: key,
-  });
-  return await getSignedUrl(s3, command, { expiresIn: 7 * 24 * 3600 });
+  // Gunakan internal API media route agar tidak diblokir ISP dan tidak expired
+  return `/api/media/${key}`;
 }
 
 /**

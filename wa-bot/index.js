@@ -205,9 +205,11 @@ async function connectToWhatsApp() {
                             Body: buffer,
                             ContentType: mimeType,
                         }));
-                        // Hasilkan Presigned URL untuk akses
-                        const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: key });
-                        mediaUrl = await getSignedUrl(s3, getCmd, { expiresIn: 7 * 24 * 3600 });
+                        // Hasilkan URL permanen untuk akses
+                        const publicBase = process.env.R2_PUBLIC_URL && !process.env.R2_PUBLIC_URL.includes('.r2.dev') 
+                            ? process.env.R2_PUBLIC_URL.replace(/\/$/, '') 
+                            : '';
+                        mediaUrl = publicBase ? `${publicBase}/${key}` : `/api/media/${key}`;
                         console.log("Upload selesai:", key);
                     } catch (uploadErr) {
                         console.error("Gagal upload ke R2:", uploadErr);
