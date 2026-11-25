@@ -165,41 +165,32 @@ export default function AppendMediaModal({
     try {
       const compressedFiles = await Promise.all(images.map(img => compressImage(img.file)));
 
-      setProgress('Checking quota & uploading direct...');
+      setProgress('Mengunggah media ke server...');
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Anda harus login terlebih dahulu.');
-
-      const { data: profile } = await supabase.from('profiles').select('storage_used, subscription_tier').eq('id', user.id).single();
-      const quota = profile?.subscription_tier === 'free' ? 100 * 1024 * 1024 : profile?.subscription_tier === 'premium_1' ? 1024 * 1024 * 1024 : 3 * 1024 * 1024 * 1024;
-      const totalUploadSize = compressedFiles.reduce((acc, f) => acc + f.size, 0) + (audioFile ? audioFile.size : 0);
-      
-      if ((profile?.storage_used || 0) + totalUploadSize > quota) {
-         throw new Error('Penyimpanan penuh! Silakan hapus catatan lama atau upgrade ke Premium.');
+      const uploadForm = new FormData();
+      for (const file of compressedFiles) {
+        uploadForm.append('file', file);
       }
-
-      // Direct Upload
-      const imagePaths = [];
-      for (let i = 0; i < compressedFiles.length; i++) {
-        const file = compressedFiles[i];
-        const ext = file.name.split('.').pop() || 'jpg';
-        const fileName = `${user.id}/${Date.now()}-${i}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, file, { contentType: file.type });
-        if (uploadError) throw new Error('Gagal mengupload gambar: ' + uploadError.message);
-        imagePaths.push(fileName);
-      }
-
-      let audioPath = null;
       if (audioFile) {
-        setProgress('Uploading audio...');
-        const ext = audioFile.name.split('.').pop() || 'mp3';
-        const fileName = `${user.id}/${Date.now()}-audio.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, audioFile, { contentType: audioFile.type });
-        if (uploadError) throw new Error('Gagal mengupload audio: ' + uploadError.message);
-        audioPath = fileName;
+        uploadForm.append('file', audioFile);
       }
 
-      setProgress('Processing with AI (Merging with existing note)...');
+      const uploadRes = await fetch('/api/upload-media', { method: 'POST', body: uploadForm });
+      if (!uploadRes.ok) {
+        const errJson = await uploadRes.json().catch(() => ({}));
+        throw new Error(errJson.error || `Upload gagal (${uploadRes.status})`);
+      }
+      const { data: uploadedFiles } = await uploadRes.json();
+
+      const imagePaths: string[] = uploadedFiles
+        .slice(0, compressedFiles.length)
+        .map((f: { key: string }) => f.key);
+
+      const audioPath: string | null = audioFile
+        ? uploadedFiles[compressedFiles.length]?.key ?? null
+        : null;
+
+      setProgress('Memproses dengan AI (Menggabungkan dengan catatan)...');
       
       const formData = new FormData();
       formData.append('existing_note_id', noteId);

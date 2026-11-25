@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import pool from '@/lib/db';
 import { getGeminiModel } from '@/lib/gemini';
+import { s3, R2_BUCKET } from '@/lib/s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 
 export const maxDuration = 60;
 
@@ -39,20 +41,46 @@ export async function POST(
       );
     }
 
-    // 2. Fetch images from signed URLs and convert to base64
+    const getImageMimeType = (type?: string, url?: string) => {
+      if (type && type.startsWith('image/')) return type;
+      const ext = url?.split('?')[0].split('.').pop()?.toLowerCase();
+      if (ext === 'png') return 'image/png';
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'gif') return 'image/gif';
+      if (ext === 'heic') return 'image/heic';
+      if (ext === 'heif') return 'image/heif';
+      return 'image/jpeg';
+    };
+
+    // 2. Fetch images from R2 or URL and convert to base64
     const imageParts = await Promise.all(
       media
         .filter((m) => m.media_type === 'image')
         .map(async (m) => {
-          const res = await fetch(m.media_url);
-          if (!res.ok) {
-            throw new Error(`Failed to fetch media image from: ${m.media_url}`);
+          let buffer: Buffer;
+          let contentType = 'image/jpeg';
+
+          if (m.media_url.startsWith('/api/media/') || !m.media_url.startsWith('http')) {
+            const key = m.media_url.replace(/^\/?api\/media\//, '');
+            const command = new GetObjectCommand({ Bucket: R2_BUCKET, Key: key });
+            const response = await s3.send(command);
+            const byteArray = await response.Body?.transformToByteArray();
+            if (!byteArray) throw new Error(`Failed to download ${key}`);
+            buffer = Buffer.from(byteArray);
+            contentType = getImageMimeType(response.ContentType, key);
+          } else {
+            const res = await fetch(m.media_url);
+            if (!res.ok) {
+              throw new Error(`Failed to fetch media image from: ${m.media_url}`);
+            }
+            const arrayBuffer = await res.arrayBuffer();
+            buffer = Buffer.from(arrayBuffer);
+            contentType = getImageMimeType(res.headers.get('content-type') || undefined, m.media_url);
           }
-          const arrayBuffer = await res.arrayBuffer();
-          const contentType = res.headers.get('content-type') || 'image/jpeg';
+
           return {
             inlineData: {
-              data: Buffer.from(arrayBuffer).toString('base64'),
+              data: buffer.toString('base64'),
               mimeType: contentType,
             },
           };

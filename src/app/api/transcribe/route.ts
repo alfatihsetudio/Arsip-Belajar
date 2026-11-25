@@ -73,6 +73,17 @@ export async function POST(req: NextRequest) {
       return { buffer: Buffer.from(byteArray), type: response.ContentType };
     };
 
+    const getImageMimeType = (type?: string, path?: string) => {
+      if (type && type.startsWith('image/')) return type;
+      const ext = path?.split('.').pop()?.toLowerCase();
+      if (ext === 'png') return 'image/png';
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'gif') return 'image/gif';
+      if (ext === 'heic') return 'image/heic';
+      if (ext === 'heif') return 'image/heif';
+      return 'image/jpeg';
+    };
+
     const imageParts: { inlineData: { data: string, mimeType: string } }[] = [];
     let audioPart: { inlineData: { data: string, mimeType: string } } | null = null;
 
@@ -81,7 +92,8 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < imagePaths.length; i++) {
         const path = imagePaths[i];
         const { buffer, type } = await downloadFromStorage(path);
-        imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: type || 'image/jpeg' } });
+        const mimeType = getImageMimeType(type, path);
+        imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType } });
         
         const publicUrl = await getPublicUrl(path);
         if (publicUrl) uploadedUrls.push({ url: publicUrl, order: i, type: 'image' });
@@ -91,7 +103,8 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < legacyImageFiles.length; i++) {
         const file = legacyImageFiles[i];
         const buffer = Buffer.from(await file.arrayBuffer());
-        imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: file.type || 'image/jpeg' } });
+        const mimeType = getImageMimeType(file.type, file.name);
+        imageParts.push({ inlineData: { data: buffer.toString('base64'), mimeType } });
         // Legacy file will NOT be saved to storage permanently in this flow.
       }
     }
@@ -175,9 +188,12 @@ CRITICAL FORMATTING RULES:
          mergePrompt += `You are provided with BOTH whiteboard images AND an audio recording of a teacher explaining them. Your task: COMBINE the visual information (what is written) with the audio explanation (what is spoken). Create a single, cohesive, comprehensive educational note that integrates both sources perfectly.\n`;
          mediaParts.push(audioPart!);
          mediaParts.push(...imageParts);
-      } else {
-         if (audioPart) mediaParts.push(audioPart);
-         if (imageParts.length > 0) mediaParts.push(...imageParts);
+      } else if (imageParts.length > 0) {
+         mergePrompt += `Understand the material from the whiteboard/images deeply and extract and structure the educational content.\n`;
+         mediaParts.push(...imageParts);
+      } else if (audioPart) {
+         mergePrompt += `Listen to the audio recording carefully and extract and structure the educational content.\n`;
+         mediaParts.push(audioPart);
       }
 
       const res = await model.generateContent([mergePrompt, ...mediaParts]);
@@ -198,6 +214,10 @@ CRITICAL FORMATTING RULES:
       if (existingNoteId) {
         transcribedText = `${existingText}\n\n------------------------------------------------------------\n\nTAMBAHAN BARU:\n\n${transcribedText}`;
       }
+    }
+
+    if (!transcribedText || !transcribedText.trim()) {
+      transcribedText = 'Tidak ada materi atau teks yang berhasil diekstrak dari gambar/media yang diunggah. Pastikan gambar cukup jelas dan memuat tulisan atau konten pelajaran.';
     }
 
     // AI Smart Tagging and Title generation

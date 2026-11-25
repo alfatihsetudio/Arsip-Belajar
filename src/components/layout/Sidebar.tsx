@@ -277,39 +277,30 @@ export default function Sidebar({ user }: { user: any }) {
     try {
       const compressedFiles = await Promise.all(noteImages.map(img => compressImage(img.file)));
 
-      setNoteProgress('Memeriksa kuota & mengunggah...');
+      setNoteProgress('Mengunggah media ke server...');
       
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) throw new Error('Anda harus login terlebih dahulu.');
-
-      const { data: profile } = await supabase.from('profiles').select('storage_used, subscription_tier').eq('id', currentUser.id).single();
-      const quota = profile?.subscription_tier === 'free' ? 100 * 1024 * 1024 : profile?.subscription_tier === 'premium_1' ? 1024 * 1024 * 1024 : 3 * 1024 * 1024 * 1024;
-      const totalUploadSize = compressedFiles.reduce((acc, f) => acc + f.size, 0) + (noteAudioFile ? noteAudioFile.size : 0);
-      
-      if ((profile?.storage_used || 0) + totalUploadSize > quota) {
-         throw new Error('Penyimpanan penuh! Silakan hapus catatan lama atau upgrade ke Premium.');
+      const uploadForm = new FormData();
+      for (const file of compressedFiles) {
+        uploadForm.append('file', file);
       }
-
-      // Direct Upload to Supabase Storage (Bypasses Vercel 4.5MB payload limit)
-      const imagePaths: string[] = [];
-      for (let i = 0; i < compressedFiles.length; i++) {
-        const file = compressedFiles[i];
-        const ext = file.name.split('.').pop() || 'jpg';
-        const fileName = `${currentUser.id}/${Date.now()}-${i}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, file, { contentType: file.type });
-        if (uploadError) throw new Error('Gagal mengupload gambar: ' + uploadError.message);
-        imagePaths.push(fileName);
-      }
-
-      let audioPath: string | null = null;
       if (noteAudioFile) {
-        setNoteProgress('Mengunggah audio...');
-        const ext = noteAudioFile.name.split('.').pop() || 'mp3';
-        const fileName = `${currentUser.id}/${Date.now()}-audio.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, noteAudioFile, { contentType: noteAudioFile.type });
-        if (uploadError) throw new Error('Gagal mengupload audio: ' + uploadError.message);
-        audioPath = fileName;
+        uploadForm.append('file', noteAudioFile);
       }
+
+      const uploadRes = await fetch('/api/upload-media', { method: 'POST', body: uploadForm });
+      if (!uploadRes.ok) {
+        const errJson = await uploadRes.json().catch(() => ({}));
+        throw new Error(errJson.error || `Upload gagal (${uploadRes.status})`);
+      }
+      const { data: uploadedFiles } = await uploadRes.json();
+
+      const imagePaths: string[] = uploadedFiles
+        .slice(0, compressedFiles.length)
+        .map((f: { key: string }) => f.key);
+
+      const audioPath: string | null = noteAudioFile
+        ? uploadedFiles[compressedFiles.length]?.key ?? null
+        : null;
 
       setNoteProgress('Memproses teks dengan AI...');
 
