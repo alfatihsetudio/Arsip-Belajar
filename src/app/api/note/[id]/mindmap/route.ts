@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import pool from '@/lib/db';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseNoteContent, serializeNoteContent } from '@/lib/utils/flashcardHelper';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+import { getGeminiModel } from '@/lib/gemini';
 
 export async function POST(
   req: NextRequest,
@@ -35,7 +33,7 @@ export async function POST(
     }
 
     // Prompt Gemini for Mind Map structure
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = getGeminiModel();
     const prompt = `Anda adalah seorang desainer kurikulum edukasi. Ubah catatan pelajaran di bawah ini menjadi struktur Peta Pikiran (Mind Map) hierarkis yang logis untuk membantu siswa memvisualisasikan konsep.
     
 Output harus berupa string JSON objek murni yang memuat tree node dengan format:

@@ -41,6 +41,7 @@ dbPool.on('error', (err) => {
 });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 async function connectToWhatsApp() {
     const { version, isLatest } = await fetchLatestBaileysVersion();
@@ -232,7 +233,7 @@ JUDUL: [Judul Singkat]
 
 Lalu di baris berikutnya, tuliskan isi catatan secara lengkap sesuai aturan di atas.`;
 
-                const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+                const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
                 const result = await model.generateContent([
                     promptMedia,
                     { inlineData: { data: base64Data, mimeType: mimeType } }
@@ -299,7 +300,7 @@ Lalu di baris berikutnya, tuliskan isi catatan secara lengkap sesuai aturan di a
 
 Pertanyaan: ${textMessage}`;
             
-            const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+            const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
             
             console.log("Meminta respons dari Gemini...");
             const result = await model.generateContent(prompt);

@@ -3,11 +3,9 @@ import { auth } from '@clerk/nextjs/server';
 import pool from '@/lib/db';
 import { getPublicUrl, s3, R2_BUCKET } from '@/lib/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getGeminiModel } from '@/lib/gemini';
 
 export const maxDuration = 60;
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
@@ -130,7 +128,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Process with Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = getGeminiModel();
     let transcribedText = '';
 
     const basePrompt = `You are an expert educational notes transcriber.

@@ -343,7 +343,7 @@ export default function SettingsClient({
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // AI Preferences
-  const [aiEngine, setAiEngine] = useState('gemini-flash-lite');
+  const [aiEngine, setAiEngine] = useState('gemini-3.5-flash-lite');
   const [aiLang, setAiLang] = useState('auto');
   const [aiSaved, setAiSaved] = useState(false);
   const isFreePlan = true;
@@ -746,15 +746,15 @@ export default function SettingsClient({
           <SectionCard title="Preferensi AI">
             <SettingsRow
               label="AI Engine"
-              sub={isFreePlan ? 'Upgrade ke Premium untuk Gemini Pro' : 'Model AI yang digunakan untuk semua fitur'}
+              sub={isFreePlan ? 'Upgrade ke Premium untuk Gemini 3.8 Flash' : 'Model AI yang digunakan untuk semua fitur'}
             >
               <StyledSelect
                 value={aiEngine}
                 onChange={setAiEngine}
                 options={[
-                  { value: 'gemini-flash-lite', label: 'Gemini Flash Lite' },
-                  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-                  { value: 'gemini-pro', label: `Gemini Pro${isFreePlan ? ' 🔒' : ''}`, disabled: isFreePlan },
+                  { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite (Cepat & Hemat)' },
+                  { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+                  { value: 'gemini-3.8-flash', label: `Gemini 3.8 Flash${isFreePlan ? ' 🔒' : ''}`, disabled: isFreePlan },
                 ]}
               />
             </SettingsRow>
@@ -762,7 +762,7 @@ export default function SettingsClient({
             {isFreePlan && (
               <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-600">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                <span><strong>Gemini Pro</strong> tersedia di paket Premium.</span>
+                <span><strong>Gemini 3.8 Flash</strong> tersedia di paket Premium.</span>
               </div>
             )}
 

@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Process with Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
 
     const getAudioPart = async (file: File) => {
       const arrayBuffer = await file.arrayBuffer();

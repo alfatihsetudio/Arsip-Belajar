@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import pool from '@/lib/db';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseNoteContent, serializeNoteContent } from '@/lib/utils/flashcardHelper';
+import { getGeminiModel } from '@/lib/gemini';
 
 export const maxDuration = 60;
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(
   req: NextRequest,
@@ -37,7 +35,7 @@ export async function POST(
     }
 
     // 2. Process summary using Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = getGeminiModel();
     const prompt = `You are an expert educational designer. 
 Your goal is to deeply analyze the provided note content and extract ONLY the absolute core learning takeaways, high-level concepts, or formulas.
 Do NOT just shorten the text, and do NOT transcribe everything. 

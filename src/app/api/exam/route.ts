@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import pool from '@/lib/db';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { SchemaType } from '@google/generative-ai';
+import { getGeminiModel } from '@/lib/gemini';
 
 export const maxDuration = 60;
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,8 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Either noteId or noteIds is required' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-flash-lite-latest',
+    const model = getGeminiModel({ 
       generationConfig: {
         responseMimeType: 'application/json',
         maxOutputTokens: 8192,

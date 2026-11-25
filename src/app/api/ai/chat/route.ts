@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import pool from '@/lib/db';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+import { getGeminiModel } from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +28,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Call Gemini API
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+    const model = getGeminiModel();
 
     // Format chat history for prompt
     const formattedHistory = (history || [])
